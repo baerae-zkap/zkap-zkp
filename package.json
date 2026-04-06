@@ -3,8 +3,7 @@
   "private": true,
   "workspaces": [
     "packages/sdk-node",
-    "packages/sdk",
-    "platform-packages/*"
+    "packages/sdk"
   ],
   "scripts": {
     "build:node": "cd packages/sdk-node && npm run build"
