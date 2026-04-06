@@ -217,30 +217,24 @@ pub struct JsProofOutput {
 #[napi]
 pub fn groth16_setup(config: JsCircuitConfig) -> napi::Result<JsSetupOutput> {
     use ark_serialize::CanonicalSerialize;
-    use std::time::Instant;
 
     let params = js_config_to_native(config);
 
-    let t0 = Instant::now();
     let output = zkap_service::groth16_setup(&params)
         .map_err(|e| napi::Error::from_reason(e.to_string()))?;
-    eprintln!("[zkap] groth16_setup: {:.3}s", t0.elapsed().as_secs_f64());
 
     // pk must be serialized uncompressed — ProofGenerator uses load_key_uncompressed.
-    let t1 = Instant::now();
     let mut pk_bytes = Vec::new();
     output
         .pk
         .serialize_uncompressed(&mut pk_bytes)
         .map_err(|e| napi::Error::from_reason(format!("Failed to serialize pk: {e}")))?;
-    eprintln!("[zkap] pk serialize: {:.3}s  ({} bytes)", t1.elapsed().as_secs_f64(), pk_bytes.len());
 
     let mut vk_bytes = Vec::new();
     output
         .vk
         .serialize_compressed(&mut vk_bytes)
         .map_err(|e| napi::Error::from_reason(format!("Failed to serialize vk: {e}")))?;
-    eprintln!("[zkap] vk serialize: {} bytes", vk_bytes.len());
 
     Ok(JsSetupOutput {
         pk_bytes: pk_bytes.into(),
@@ -256,7 +250,6 @@ pub fn groth16_setup(config: JsCircuitConfig) -> napi::Result<JsSetupOutput> {
 pub fn prove(config: JsCircuitConfig, request: JsProofRequest) -> napi::Result<JsProofOutput> {
     use ark_serialize::CanonicalSerialize;
     use std::path::PathBuf;
-    use std::time::Instant;
     use zkap_service::RawProofRequest;
 
     let params = js_config_to_native(config);
@@ -273,10 +266,8 @@ pub fn prove(config: JsCircuitConfig, request: JsProofRequest) -> napi::Result<J
         request.aud_list,
     );
 
-    let t0 = Instant::now();
     let (proofs, pub_inputs) = zkap_service::prove(&params, raw)
         .map_err(|e| napi::Error::from_reason(e.to_string()))?;
-    eprintln!("[zkap] prove ({} proofs): {:.3}s", proofs.len(), t0.elapsed().as_secs_f64());
 
     let proofs: napi::Result<Vec<napi::bindgen_prelude::Buffer>> = proofs
         .iter()
@@ -317,15 +308,12 @@ pub fn verify(
     use ark_bn254::Bn254;
     use ark_serialize::CanonicalDeserialize;
     use ark_ff::PrimeField;
-    use std::time::Instant;
 
-    let t_deser = Instant::now();
     let vk = VerifyingKey::<Bn254>::deserialize_compressed(&*vk_bytes)
         .map_err(|e| napi::Error::from_reason(format!("Failed to deserialize vk: {e}")))?;
     let pvk: PreparedVerifyingKey<Bn254> = prepare_verifying_key(&vk);
     let proof = Proof::<Bn254>::deserialize_compressed(&*proof_bytes)
         .map_err(|e| napi::Error::from_reason(format!("Failed to deserialize proof: {e}")))?;
-    eprintln!("[zkap] verify deserialize: {:.3}s", t_deser.elapsed().as_secs_f64());
 
     // Parse hex-encoded field elements produced by f_to_hex ("0x" + 64 hex chars).
     let inputs: napi::Result<Vec<ark_bn254::Fr>> = public_inputs
@@ -339,9 +327,6 @@ pub fn verify(
         })
         .collect();
 
-    let t_verify = Instant::now();
-    let result = zkap_service::verify(&pvk, &proof, &inputs?)
-        .map_err(|e| napi::Error::from_reason(e.to_string()));
-    eprintln!("[zkap] verify check: {:.3}s  result={:?}", t_verify.elapsed().as_secs_f64(), result.as_ref().ok());
-    result
+    zkap_service::verify(&pvk, &proof, &inputs?)
+        .map_err(|e| napi::Error::from_reason(e.to_string()))
 }
