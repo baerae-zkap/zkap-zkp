@@ -268,6 +268,7 @@ dependencies = [
 [[package]]
 name = "ark-utils"
 version = "0.1.0"
+source = "git+https://github.com/snp-labs/zkap-circuit.git?branch=develop#3592d254292654f2fc70e725beaf4c968d561a88"
 dependencies = [
  "ark-ec",
  "ark-ff",
@@ -343,6 +344,7 @@ checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 [[package]]
 name = "circuit"
 version = "0.1.0"
+source = "git+https://github.com/snp-labs/zkap-circuit.git?branch=develop#3592d254292654f2fc70e725beaf4c968d561a88"
 dependencies = [
  "ark-bn254",
  "ark-crypto-primitives",
@@ -512,6 +514,7 @@ checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 [[package]]
 name = "gadget"
 version = "0.1.0"
+source = "git+https://github.com/snp-labs/zkap-circuit.git?branch=develop#3592d254292654f2fc70e725beaf4c968d561a88"
 dependencies = [
  "ark-bn254",
  "ark-crypto-primitives",
@@ -1257,6 +1260,7 @@ dependencies = [
 [[package]]
 name = "zkap-service"
 version = "0.1.0"
+source = "git+https://github.com/snp-labs/zkap-circuit.git?branch=develop#3592d254292654f2fc70e725beaf4c968d561a88"
 dependencies = [
  "ark-bn254",
  "ark-crypto-primitives",
