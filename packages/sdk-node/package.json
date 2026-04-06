@@ -45,6 +45,7 @@
     ],
     "files": [
       "__test__/**/*.spec.ts"
-    ]
+    ],
+    "timeout": "10m"
   }
 }
