@@ -9,6 +9,11 @@
       "require": "./dist/node.cjs",
       "import": "./dist/node.mjs",
       "default": "./src/node.ts"
+    },
+    "./artifact-manager": {
+      "require": "./dist/artifact-manager.cjs",
+      "import": "./dist/artifact-manager.mjs",
+      "default": "./src/artifact-manager.ts"
     }
   },
   "files": [
@@ -17,5 +22,23 @@
   ],
   "dependencies": {
     "@baerae/zkap-zkp-node": "*"
+  },
+  "scripts": {
+    "test": "ava"
+  },
+  "devDependencies": {
+    "@swc-node/register": "^1.11.1",
+    "@swc/core": "^1.15.24",
+    "@types/node": "^20.0.0",
+    "ava": "^6.4.1",
+    "typescript": "^5.4.5"
+  },
+  "ava": {
+    "extensions": ["ts"],
+    "require": ["@swc-node/register"],
+    "files": [
+      "__test__/**/*.spec.ts"
+    ],
+    "timeout": "10m"
   }
 }
