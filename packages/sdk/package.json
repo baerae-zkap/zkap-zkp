@@ -1,0 +1,21 @@
+{
+  "name": "@baerae/zkap-zkp",
+  "version": "0.1.0",
+  "description": "zkap-zkp SDK for Node.js",
+  "main": "src/node.ts",
+  "types": "src/node.ts",
+  "exports": {
+    ".": {
+      "require": "./dist/node.cjs",
+      "import": "./dist/node.mjs",
+      "default": "./src/node.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "dependencies": {
+    "@baerae/zkap-zkp-node": "*"
+  }
+}
