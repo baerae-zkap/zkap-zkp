@@ -307,7 +307,6 @@ pub fn verify(
     use ark_groth16::{PreparedVerifyingKey, Proof, VerifyingKey, prepare_verifying_key};
     use ark_bn254::Bn254;
     use ark_serialize::CanonicalDeserialize;
-    use ark_ff::PrimeField;
 
     let vk = VerifyingKey::<Bn254>::deserialize_compressed(&*vk_bytes)
         .map_err(|e| napi::Error::from_reason(format!("Failed to deserialize vk: {e}")))?;
