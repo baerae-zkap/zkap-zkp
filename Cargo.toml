@@ -5,7 +5,7 @@ members = [
 ]
 
 [workspace.dependencies]
-zkap-service = { path = "../zkap-circuit/crates/service" }
+zkap-service = { git = "https://github.com/snp-labs/zkap-circuit.git", branch = "develop" }
 napi = { version = "2.16", features = ["napi8"] }
 napi-derive = { version = "2.16" }
 

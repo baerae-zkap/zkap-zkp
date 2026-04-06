@@ -2,7 +2,7 @@ name: Build Node.js binaries
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
     tags: ['v*']
   pull_request:
 
@@ -39,20 +39,14 @@ jobs:
       - name: Install cargo-binstall
         uses: cargo-bins/cargo-binstall@main
 
-      - name: Install cargo-zigbuild (musl only)
-        if: matrix.zigbuild
-        run: cargo binstall cargo-zigbuild --no-confirm --locked
-
-      - name: Install musl target (musl only)
-        if: matrix.zigbuild
-        run: rustup target add x86_64-unknown-linux-musl
-
       - name: Setup Node.js
+        if: "!matrix.zigbuild"
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
       - name: Install @napi-rs/cli
+        if: "!matrix.zigbuild"
         run: npm install -g @napi-rs/cli
 
       - name: Build (standard)
@@ -60,12 +54,19 @@ jobs:
         working-directory: packages/sdk-node
         run: napi build --platform --release --target ${{ matrix.target }}
 
-      - name: Build (cargo-zigbuild musl)
+      - name: Build (musl via napi-rs alpine Docker)
         if: matrix.zigbuild
-        working-directory: packages/sdk-node
-        run: |
-          cargo zigbuild --target x86_64-unknown-linux-musl --release --manifest-path ../../Cargo.toml -p zkap-zkp-node
-          cp ../../target/x86_64-unknown-linux-musl/release/libzkap_zkp_node.so zkap-zkp-node.linux-x64-musl.node
+        uses: addnab/docker-run-action@v3
+        with:
+          image: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine
+          options: -v ${{ github.workspace }}:/build -w /build
+          run: |
+            apk add --no-cache gcc g++ musl-dev linux-headers cmake
+            rustup update stable
+            unset CC_x86_64_unknown_linux_musl
+            unset CXX_x86_64_unknown_linux_musl
+            cargo build --release --target x86_64-unknown-linux-musl -p zkap-zkp-node
+            cp target/x86_64-unknown-linux-musl/release/libzkap_zkp_node.so packages/sdk-node/zkap-zkp-node.linux-x64-musl.node
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
