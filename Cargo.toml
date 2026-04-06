@@ -1,0 +1,15 @@
+[workspace]
+resolver = "2"
+members = [
+    "packages/sdk-node",
+]
+
+[workspace.dependencies]
+zkap-service = { path = "../zkap-circuit/crates/service" }
+napi = { version = "2.16", features = ["napi8"] }
+napi-derive = { version = "2.16" }
+
+[profile.release]
+lto = true
+strip = "symbols"
+panic = "abort"

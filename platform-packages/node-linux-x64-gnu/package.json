@@ -1,0 +1,10 @@
+{
+  "name": "@baerae/zkap-zkp-node-linux-x64-gnu",
+  "version": "0.1.0",
+  "description": "Linux x64 (glibc) binary for @baerae/zkap-zkp-node",
+  "os": ["linux"],
+  "cpu": ["x64"],
+  "main": "zkap-zkp-node.linux-x64-gnu.node",
+  "files": ["zkap-zkp-node.linux-x64-gnu.node"],
+  "license": "MIT OR Apache-2.0"
+}

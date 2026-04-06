@@ -1,0 +1,12 @@
+{
+  "name": "@baerae/zkap-zkp-workspace",
+  "private": true,
+  "workspaces": [
+    "packages/sdk-node",
+    "packages/sdk",
+    "platform-packages/*"
+  ],
+  "scripts": {
+    "build:node": "cd packages/sdk-node && npm run build"
+  }
+}

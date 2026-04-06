@@ -1,0 +1,10 @@
+{
+  "name": "@baerae/zkap-zkp-node-darwin-x64",
+  "version": "0.1.0",
+  "description": "macOS x64 binary for @baerae/zkap-zkp-node",
+  "os": ["darwin"],
+  "cpu": ["x64"],
+  "main": "zkap-zkp-node.darwin-x64.node",
+  "files": ["zkap-zkp-node.darwin-x64.node"],
+  "license": "MIT OR Apache-2.0"
+}
