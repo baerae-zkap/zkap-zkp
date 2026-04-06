@@ -1,0 +1,43 @@
+name: Build WASM
+
+on:
+  push:
+    branches: [main, develop]
+    tags: ['v*']
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: Build wasm32-unknown-unknown
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Build (bundler target)
+        working-directory: packages/sdk-wasm
+        run: wasm-pack build --target bundler --out-dir pkg --out-name zkap_zkp_wasm --release
+
+      - name: Patch package name
+        working-directory: packages/sdk-wasm
+        run: node scripts/patch-pkg-name.mjs
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasm-bundler
+          path: packages/sdk-wasm/pkg/
+          if-no-files-found: error
