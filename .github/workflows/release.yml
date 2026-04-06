@@ -1,0 +1,246 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      dry_run_only:
+        description: 'Run dry-run only, skip actual publish'
+        required: false
+        default: 'false'
+        type: boolean
+
+# Only one release at a time
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  # ──────────────────────────────────────────────
+  # 1. Build Node.js platform binaries (parallel)
+  # ──────────────────────────────────────────────
+  build-node:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            platform_pkg: node-darwin-x64
+            binary_name: zkap-zkp-node.darwin-x64.node
+            zigbuild: false
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            platform_pkg: node-darwin-arm64
+            binary_name: zkap-zkp-node.darwin-arm64.node
+            zigbuild: false
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            platform_pkg: node-linux-x64-gnu
+            binary_name: zkap-zkp-node.linux-x64-gnu.node
+            zigbuild: false
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+            platform_pkg: node-linux-x64-musl
+            binary_name: zkap-zkp-node.linux-x64-musl.node
+            zigbuild: true
+
+    runs-on: ${{ matrix.os }}
+    name: Build ${{ matrix.target }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cargo-binstall
+        uses: cargo-bins/cargo-binstall@main
+
+      - name: Setup Node.js
+        if: "!matrix.zigbuild"
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install @napi-rs/cli
+        if: "!matrix.zigbuild"
+        run: npm install -g @napi-rs/cli
+
+      - name: Build (standard)
+        if: "!matrix.zigbuild"
+        working-directory: packages/sdk-node
+        run: napi build --platform --release --target ${{ matrix.target }}
+
+      - name: Build (musl via napi-rs alpine Docker)
+        if: matrix.zigbuild
+        uses: addnab/docker-run-action@v3
+        with:
+          image: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine
+          options: -v ${{ github.workspace }}:/build -w /build
+          run: |
+            apk add --no-cache gcc g++ musl-dev linux-headers cmake
+            rustup update stable
+            unset CC_x86_64_unknown_linux_musl
+            unset CXX_x86_64_unknown_linux_musl
+            cargo build --release --target x86_64-unknown-linux-musl -p zkap-zkp-node
+            cp target/x86_64-unknown-linux-musl/release/libzkap_zkp_node.so \
+               packages/sdk-node/zkap-zkp-node.linux-x64-musl.node
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ matrix.target }}
+          path: packages/sdk-node/${{ matrix.binary_name }}
+          if-no-files-found: error
+
+  # ──────────────────────────────────────────────
+  # 2. Publish (dry-run then actual)
+  # ──────────────────────────────────────────────
+  publish:
+    needs: build-node
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # create GitHub Release
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      # Download all four platform binaries into their platform-packages dirs
+      - name: Download darwin-x64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: binary-x86_64-apple-darwin
+          path: platform-packages/node-darwin-x64
+
+      - name: Download darwin-arm64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: binary-aarch64-apple-darwin
+          path: platform-packages/node-darwin-arm64
+
+      - name: Download linux-x64-gnu binary
+        uses: actions/download-artifact@v4
+        with:
+          name: binary-x86_64-unknown-linux-gnu
+          path: platform-packages/node-linux-x64-gnu
+
+      - name: Download linux-x64-musl binary
+        uses: actions/download-artifact@v4
+        with:
+          name: binary-x86_64-unknown-linux-musl
+          path: platform-packages/node-linux-x64-musl
+
+      # Also place binaries in sdk-node so index.js can load them
+      - name: Copy binaries into sdk-node
+        run: |
+          cp platform-packages/node-darwin-x64/*.node    packages/sdk-node/ 2>/dev/null || true
+          cp platform-packages/node-darwin-arm64/*.node  packages/sdk-node/ 2>/dev/null || true
+          cp platform-packages/node-linux-x64-gnu/*.node packages/sdk-node/ 2>/dev/null || true
+          cp platform-packages/node-linux-x64-musl/*.node packages/sdk-node/ 2>/dev/null || true
+
+      # Create GitHub Release (draft) and upload binaries as assets
+      - name: Create GitHub Release draft
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref_name }}
+          release_name: ${{ github.ref_name }}
+          draft: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          body: |
+            ## ${{ github.ref_name }}
+
+            ### Node.js Binaries
+            Platform binaries are distributed via npm as `optionalDependencies`.
+            Install with: `npm install @baerae/zkap-zkp`
+
+      - name: Upload darwin-x64 binary to Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: platform-packages/node-darwin-x64/zkap-zkp-node.darwin-x64.node
+          asset_name: zkap-zkp-node.darwin-x64.node
+          asset_content_type: application/octet-stream
+
+      - name: Upload darwin-arm64 binary to Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: platform-packages/node-darwin-arm64/zkap-zkp-node.darwin-arm64.node
+          asset_name: zkap-zkp-node.darwin-arm64.node
+          asset_content_type: application/octet-stream
+
+      - name: Upload linux-x64-gnu binary to Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: platform-packages/node-linux-x64-gnu/zkap-zkp-node.linux-x64-gnu.node
+          asset_name: zkap-zkp-node.linux-x64-gnu.node
+          asset_content_type: application/octet-stream
+
+      - name: Upload linux-x64-musl binary to Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: platform-packages/node-linux-x64-musl/zkap-zkp-node.linux-x64-musl.node
+          asset_name: zkap-zkp-node.linux-x64-musl.node
+          asset_content_type: application/octet-stream
+
+      # npm dry-run: validate all tarballs before any publish (ARCH-5)
+      - name: npm dry-run (all packages)
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          npm publish ./platform-packages/node-darwin-x64   --dry-run --access public
+          npm publish ./platform-packages/node-darwin-arm64 --dry-run --access public
+          npm publish ./platform-packages/node-linux-x64-gnu  --dry-run --access public
+          npm publish ./platform-packages/node-linux-x64-musl --dry-run --access public
+          npm publish ./packages/sdk-node --dry-run --access public
+          npm publish ./packages/sdk      --dry-run --access public
+
+      # Actual publish (skipped if workflow_dispatch dry_run_only=true)
+      - name: npm publish
+        if: ${{ github.event.inputs.dry_run_only != 'true' }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          # Platform packages first — optionalDependencies must resolve before sdk-node
+          npm publish ./platform-packages/node-darwin-x64   --access public
+          npm publish ./platform-packages/node-darwin-arm64 --access public
+          npm publish ./platform-packages/node-linux-x64-gnu  --access public
+          npm publish ./platform-packages/node-linux-x64-musl --access public
+          npm publish ./packages/sdk-node --access public
+          npm publish ./packages/sdk      --access public
+
+      # Publish Release (draft → published) after npm succeeds
+      - name: Publish GitHub Release
+        if: ${{ github.event.inputs.dry_run_only != 'true' }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.repos.updateRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: ${{ steps.create_release.outputs.id }},
+              draft: false,
+            });
