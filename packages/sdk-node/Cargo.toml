@@ -16,6 +16,8 @@ serde = { version = "1", features = ["derive"] }
 hex = "0.4"
 ark-ff = "0.5"
 ark-bn254 = "0.5"
+ark-groth16 = "0.5"
+ark-serialize = "0.5"
 
 [build-dependencies]
 napi-build = "2"

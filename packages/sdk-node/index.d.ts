@@ -62,6 +62,63 @@ export declare function generateAudHash(config: JsCircuitConfig, audList: Array<
  * Returns the leaf field element as a 0x-prefixed hex string.
  */
 export declare function generateLeafHash(config: JsCircuitConfig, iss: string, pkB64: string): string
-export declare function groth16Setup(configJson: string): string
-export declare function prove(requestJson: string): string
-export declare function verify(proofJson: string): boolean
+/** Output of `groth16_setup`: serialized proving key and verifying key bytes. */
+export interface JsSetupOutput {
+  /** `ark_serialize` bytes of the Groth16 proving key (Node.js Buffer). */
+  pkBytes: Buffer
+  /** `ark_serialize` bytes of the Groth16 verifying key (Node.js Buffer). */
+  vkBytes: Buffer
+}
+/** Raw proof request passed from JavaScript to `prove`. */
+export interface JsProofRequest {
+  /** Path to the proving key file on disk. */
+  pkPath: string
+  /** JWT tokens — one per credential (must have exactly `k` entries). */
+  jwts: Array<string>
+  /** RSA public key moduli in Base64 — one per JWT. */
+  pkOps: Array<string>
+  /** Merkle authentication paths — one Vec per JWT. */
+  merklePaths: Array<Array<string>>
+  /** Merkle leaf indices — one per JWT. */
+  leafIndices: Array<number>
+  /** Merkle root as a hex/decimal field-element string. */
+  root: string
+  /** Anchor polynomial evaluations plus `hanchor` as the last element. */
+  anchor: Array<string>
+  /** Signed UserOperation hash. */
+  hSignUserOp: string
+  /** Random blinding value. */
+  random: string
+  /** Allowed audience values as hex/decimal field-element strings. */
+  audList: Array<string>
+}
+/** Output of `prove`: serialized proof bytes and hex-encoded public inputs per proof. */
+export interface JsProofOutput {
+  /** `ark_serialize` bytes for each generated Groth16 proof (Node.js Buffer per proof). */
+  proofs: Array<Buffer>
+  /** Public inputs per proof, each field element as a 0x-prefixed hex string. */
+  publicInputs: Array<Array<string>>
+}
+/**
+ * Perform a Groth16 trusted setup for the ZKAP circuit.
+ *
+ * Returns serialized proving key and verifying key bytes (ark_serialize format).
+ * These bytes can be written to disk and later passed to `prove` / `verify`.
+ */
+export declare function groth16Setup(config: JsCircuitConfig): JsSetupOutput
+/**
+ * Generate Groth16 proofs from raw user inputs.
+ *
+ * Returns serialized proof bytes and hex-encoded public inputs for each JWT token.
+ */
+export declare function prove(config: JsCircuitConfig, request: JsProofRequest): JsProofOutput
+/**
+ * Verify a single Groth16 proof.
+ *
+ * - `vk_bytes`: ark_serialize bytes of the verifying key (from `groth16_setup`).
+ * - `proof_bytes`: ark_serialize bytes of the proof (from `prove`).
+ * - `public_inputs`: field elements as 0x-prefixed hex strings.
+ *
+ * Returns `true` if the proof is valid.
+ */
+export declare function verify(vkBytes: Buffer, proofBytes: Buffer, publicInputs: Array<string>): boolean
