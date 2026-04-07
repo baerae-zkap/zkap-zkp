@@ -17,9 +17,20 @@
       "import": "./dist/artifact-manager.mjs"
     }
   },
-  "files": ["dist"],
-  "engines": { "node": ">=18" },
-  "keywords": ["zk", "groth16", "poseidon", "zkap", "bn254", "zero-knowledge"],
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "zk",
+    "groth16",
+    "poseidon",
+    "zkap",
+    "bn254",
+    "zero-knowledge"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/baerae-zkap/zkap-zkp.git",
@@ -44,9 +55,15 @@
     "typescript": "^5.4.5"
   },
   "ava": {
-    "extensions": ["ts"],
-    "require": ["@swc-node/register"],
-    "files": ["__test__/**/*.spec.ts"],
+    "extensions": [
+      "ts"
+    ],
+    "require": [
+      "@swc-node/register"
+    ],
+    "files": [
+      "__test__/**/*.spec.ts"
+    ],
     "timeout": "10m"
   }
 }
