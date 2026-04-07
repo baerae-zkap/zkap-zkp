@@ -66,8 +66,8 @@ export async function initProveArtifacts(
   options: InitProveArtifactsOptions
 ): Promise<string> {
   const cacheDir =
-    options.cacheDir ??
-    `${FileSystem.cacheDirectory}zkap/`;
+    (options.cacheDir ?? `${FileSystem.cacheDirectory}zkap/`)
+      .replace(/^file:\/\//, '');
 
   // Ensure cache directory exists
   await ensureDir(cacheDir);
@@ -195,17 +195,31 @@ async function downloadWithRetry(opts: DownloadOptions): Promise<void> {
 
 async function verifySha256(filePath: string, expectedHex: string): Promise<boolean> {
   try {
-    // Read file as base64, then hash
+    // Read file as base64, convert to raw binary Uint8Array, then SHA256 the binary.
+    // NOTE: digestStringAsync hashes the string's UTF-8 bytes, not the file's binary
+    // content. We must use Crypto.digest(algorithm, Uint8Array) for correct results.
     const base64 = await FileSystem.readAsStringAsync(filePath, {
       encoding: FileSystem.EncodingType.Base64,
     });
-    const digest = await Crypto.digestStringAsync(
+
+    // base64 → raw binary bytes
+    const binaryStr = atob(base64);
+    const bytes = new Uint8Array(binaryStr.length);
+    for (let i = 0; i < binaryStr.length; i++) {
+      bytes[i] = binaryStr.charCodeAt(i);
+    }
+
+    // Hash the raw binary
+    const digestBuffer = await Crypto.digest(
       Crypto.CryptoDigestAlgorithm.SHA256,
-      base64,
-      { encoding: Crypto.CryptoEncoding.BASE64 }
+      bytes
     );
-    // Convert base64 digest to hex for comparison
-    const digestHex = Buffer.from(digest, 'base64').toString('hex');
+
+    // ArrayBuffer → hex string
+    const digestHex = Array.from(new Uint8Array(digestBuffer))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+
     return digestHex.toLowerCase() === expectedHex.toLowerCase();
   } catch {
     return false;

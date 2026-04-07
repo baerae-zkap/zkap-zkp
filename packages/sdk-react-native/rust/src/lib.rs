@@ -372,14 +372,24 @@ pub unsafe extern "C" fn zkap_prove(input_json: *const c_char) -> *mut c_char {
 
     match zkap_service::prove(&params, raw) {
         Ok((proofs, pub_inputs)) => {
+            let mut serialize_err: Option<String> = None;
             let proof_hexes: Vec<String> = proofs
                 .iter()
                 .map(|p| {
                     let mut buf = Vec::new();
-                    p.serialize_compressed(&mut buf).unwrap_or_default();
-                    hex::encode(&buf)
+                    match p.serialize_compressed(&mut buf) {
+                        Ok(()) => hex::encode(&buf),
+                        Err(e) => {
+                            serialize_err = Some(format!("proof serialization failed: {}", e));
+                            String::new()
+                        }
+                    }
                 })
                 .collect();
+
+            if let Some(err) = serialize_err {
+                return error_response(&err);
+            }
 
             let public_inputs: Vec<Vec<String>> = pub_inputs
                 .into_iter()
@@ -396,4 +406,94 @@ pub unsafe extern "C" fn zkap_prove(input_json: *const c_char) -> *mut c_char {
         }
         Err(e) => error_response(&e.to_string()),
     }
+}
+
+// ---------------------------------------------------------------------------
+// Android JNI wrappers
+//
+// Proper JNI entry points for Android. Each wrapper:
+//   1. Reads the Java String input
+//   2. Calls the C-ABI function (which allocates a Rust heap response)
+//   3. Copies the response into a new Java String
+//   4. Frees the Rust allocation via zkap_free_string
+//   5. Returns the Java String
+//
+// Method naming (no underscores) avoids JNI name-mangling complexity.
+// Kotlin declares: external fun nativeGenerateHash(inputJson: String): String
+// JNI symbol:      Java_expo_modules_zkap_ZkapSdkModule_nativeGenerateHash
+// ---------------------------------------------------------------------------
+
+#[cfg(target_os = "android")]
+mod android_jni {
+    use super::*;
+    use jni::JNIEnv;
+    use jni::objects::{JClass, JString};
+    use jni::sys::jstring;
+
+    macro_rules! jni_wrapper {
+        ($fn_name:ident, $c_fn:ident) => {
+            #[no_mangle]
+            pub extern "system" fn $fn_name(
+                mut env: JNIEnv,
+                _class: JClass,
+                input: JString,
+            ) -> jstring {
+                let input_str: String = match env.get_string(&input) {
+                    Ok(s) => s.into(),
+                    Err(e) => {
+                        let msg = format!("{{\"error\":\"JNI get_string failed: {}\"}}", e);
+                        return env.new_string(msg).unwrap().into_raw();
+                    }
+                };
+
+                let c_input = match std::ffi::CString::new(input_str) {
+                    Ok(s) => s,
+                    Err(_) => {
+                        return env
+                            .new_string("{\"error\":\"null byte in input\"}")
+                            .unwrap()
+                            .into_raw();
+                    }
+                };
+
+                let result_ptr = unsafe { $c_fn(c_input.as_ptr()) };
+                if result_ptr.is_null() {
+                    return env
+                        .new_string("{\"error\":\"FFI returned null\"}")
+                        .unwrap()
+                        .into_raw();
+                }
+
+                let result_str = unsafe {
+                    std::ffi::CStr::from_ptr(result_ptr)
+                        .to_string_lossy()
+                        .into_owned()
+                };
+                unsafe { zkap_free_string(result_ptr) };
+
+                env.new_string(result_str).unwrap().into_raw()
+            }
+        };
+    }
+
+    jni_wrapper!(
+        Java_expo_modules_zkap_ZkapSdkModule_nativeGenerateHash,
+        zkap_generate_hash
+    );
+    jni_wrapper!(
+        Java_expo_modules_zkap_ZkapSdkModule_nativeGenerateAnchor,
+        zkap_generate_anchor
+    );
+    jni_wrapper!(
+        Java_expo_modules_zkap_ZkapSdkModule_nativeGenerateAudHash,
+        zkap_generate_aud_hash
+    );
+    jni_wrapper!(
+        Java_expo_modules_zkap_ZkapSdkModule_nativeGenerateLeafHash,
+        zkap_generate_leaf_hash
+    );
+    jni_wrapper!(
+        Java_expo_modules_zkap_ZkapSdkModule_nativeProve,
+        zkap_prove
+    );
 }

@@ -38,11 +38,12 @@ jobs:
     name: Build ${{ matrix.name }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9  # stable
         with:
+          toolchain: stable
           targets: ${{ matrix.target }}
 
       - name: Build
@@ -52,7 +53,7 @@ jobs:
             -p zkap-zkp-rn
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: ${{ matrix.artifact }}
           path: target/${{ matrix.target }}/release/${{ matrix.binary }}
@@ -85,11 +86,12 @@ jobs:
     name: Build ${{ matrix.name }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9  # stable
         with:
+          toolchain: stable
           targets: ${{ matrix.target }}
 
       - name: Setup Android NDK
@@ -122,8 +124,59 @@ jobs:
             -p zkap-zkp-rn
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: ${{ matrix.artifact }}
           path: target/${{ matrix.target }}/release/libzkap_zkp_rn.so
+          if-no-files-found: error
+
+  # ──────────────────────────────────────────────
+  # Assemble iOS XCFramework from 3 slice artifacts
+  # ──────────────────────────────────────────────
+  assemble-ios-xcframework:
+    needs: [build-ios]
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+
+      - name: Download arm64 device artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        with:
+          name: rn-ios-arm64
+          path: rn-ios-arm64
+
+      - name: Download arm64 simulator artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        with:
+          name: rn-ios-sim-arm64
+          path: rn-ios-sim-arm64
+
+      - name: Download x86_64 simulator artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        with:
+          name: rn-ios-sim-x86_64
+          path: rn-ios-sim-x86_64
+
+      - name: Create fat simulator library
+        run: |
+          lipo -create \
+            rn-ios-sim-arm64/libzkap_zkp_rn.a \
+            rn-ios-sim-x86_64/libzkap_zkp_rn.a \
+            -output libzkap_zkp_rn_sim.a
+
+      - name: Create XCFramework
+        run: |
+          xcodebuild -create-xcframework \
+            -library rn-ios-arm64/libzkap_zkp_rn.a \
+            -headers packages/sdk-react-native/ios/include \
+            -library libzkap_zkp_rn_sim.a \
+            -headers packages/sdk-react-native/ios/include \
+            -output ZkapZkp.xcframework
+
+      - name: Upload XCFramework artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: rn-ios-xcframework
+          path: ZkapZkp.xcframework
           if-no-files-found: error
