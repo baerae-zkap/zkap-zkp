@@ -1,0 +1,15 @@
+{
+  "name": "zkap-zkp-browser-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite"
+  },
+  "dependencies": {
+    "@baerae/zkap-zkp-wasm": "file:../../packages/sdk-wasm/pkg",
+    "vite-plugin-wasm": "^3.6.0"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0"
+  }
+}

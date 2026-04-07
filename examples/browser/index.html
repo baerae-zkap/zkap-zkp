@@ -3,19 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <title>zkap-zkp WASM Example</title>
+  <style>
+    body { font-family: monospace; padding: 2rem; background: #1a1a1a; color: #eee; }
+    h1 { color: #7dd3fc; }
+    pre { background: #111; padding: 1rem; border-radius: 6px; white-space: pre-wrap; }
+  </style>
 </head>
 <body>
   <h1>zkap-zkp WebAssembly Example</h1>
-  <pre id="output">Loading...</pre>
-  <script type="module">
-    // With a bundler (Vite/webpack), use:
-    // import init, { generateHash } from '@baerae/zkap-zkp-wasm';
-    // await init();
-    // const hash = generateHash(['0x1', '0x2']);
-
-    document.getElementById('output').textContent =
-      'Use a bundler (Vite/webpack) to import @baerae/zkap-zkp-wasm.\n' +
-      'See README.md for setup instructions.';
-  </script>
+  <pre id="output">Initializing WASM...</pre>
+  <script type="module" src="/main.js"></script>
 </body>
 </html>
