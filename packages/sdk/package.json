@@ -1,29 +1,38 @@
 {
   "name": "@baerae/zkap-zkp",
   "version": "0.1.0",
-  "description": "zkap-zkp SDK for Node.js",
-  "main": "src/node.ts",
-  "types": "src/node.ts",
+  "description": "Node.js SDK for zkap-zkp. For browser (WebAssembly), use @baerae/zkap-zkp-wasm.",
+  "main": "./dist/node.cjs",
+  "module": "./dist/node.mjs",
+  "types": "./dist/node.d.ts",
   "exports": {
     ".": {
+      "types": "./dist/node.d.ts",
       "require": "./dist/node.cjs",
-      "import": "./dist/node.mjs",
-      "default": "./src/node.ts"
+      "import": "./dist/node.mjs"
     },
     "./artifact-manager": {
+      "types": "./dist/artifact-manager.d.ts",
       "require": "./dist/artifact-manager.cjs",
-      "import": "./dist/artifact-manager.mjs",
-      "default": "./src/artifact-manager.ts"
+      "import": "./dist/artifact-manager.mjs"
     }
   },
-  "files": [
-    "dist",
-    "src"
-  ],
+  "files": ["dist"],
+  "engines": { "node": ">=18" },
+  "keywords": ["zk", "groth16", "poseidon", "zkap", "bn254", "zero-knowledge"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/baerae-zkap/zkap-zkp.git",
+    "directory": "packages/sdk"
+  },
+  "homepage": "https://github.com/baerae-zkap/zkap-zkp",
+  "bugs": "https://github.com/baerae-zkap/zkap-zkp/issues",
+  "license": "MIT OR Apache-2.0",
   "dependencies": {
     "@baerae/zkap-zkp-node": "*"
   },
   "scripts": {
+    "build": "tsup",
     "test": "ava"
   },
   "devDependencies": {
@@ -31,14 +40,13 @@
     "@swc/core": "^1.15.24",
     "@types/node": "^20.0.0",
     "ava": "^6.4.1",
+    "tsup": "^8.0.0",
     "typescript": "^5.4.5"
   },
   "ava": {
     "extensions": ["ts"],
     "require": ["@swc-node/register"],
-    "files": [
-      "__test__/**/*.spec.ts"
-    ],
+    "files": ["__test__/**/*.spec.ts"],
     "timeout": "10m"
   }
 }

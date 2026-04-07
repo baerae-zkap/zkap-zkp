@@ -18,6 +18,16 @@
       "x86_64-unknown-linux-musl"
     ]
   },
+  "engines": { "node": ">=18" },
+  "keywords": ["zk", "groth16", "poseidon", "zkap", "napi", "native"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/baerae-zkap/zkap-zkp.git",
+    "directory": "packages/sdk-node"
+  },
+  "homepage": "https://github.com/baerae-zkap/zkap-zkp",
+  "bugs": "https://github.com/baerae-zkap/zkap-zkp/issues",
+  "license": "MIT OR Apache-2.0",
   "scripts": {
     "build": "napi build --platform --release",
     "build:debug": "napi build --platform",
