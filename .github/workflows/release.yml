@@ -222,6 +222,39 @@ jobs:
         if: ${{ github.event_name != 'workflow_dispatch' || !inputs.skip_tests }}
         run: npm --workspace packages/sdk test
 
+      # Download React Native native binaries built by build-react-native.yml
+      - name: Download iOS XCFramework
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        with:
+          name: rn-ios-xcframework
+          path: packages/sdk-react-native/ios/ZkapZkp.xcframework
+
+      - name: Download Android arm64 .so
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        with:
+          name: rn-android-arm64
+          path: packages/sdk-react-native/android/libs/arm64-v8a
+
+      - name: Download Android armv7 .so
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        with:
+          name: rn-android-armv7
+          path: packages/sdk-react-native/android/libs/armeabi-v7a
+
+      - name: Download Android x86_64 .so
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        with:
+          name: rn-android-x86_64
+          path: packages/sdk-react-native/android/libs/x86_64
+
+      - name: Verify React Native package binaries
+        run: |
+          test -d packages/sdk-react-native/ios/ZkapZkp.xcframework || (echo "Missing iOS XCFramework" && exit 1)
+          test -f packages/sdk-react-native/android/libs/arm64-v8a/libzkap_zkp_rn.so || (echo "Missing Android arm64 .so" && exit 1)
+          test -f packages/sdk-react-native/android/libs/armeabi-v7a/libzkap_zkp_rn.so || (echo "Missing Android armv7 .so" && exit 1)
+          test -f packages/sdk-react-native/android/libs/x86_64/libzkap_zkp_rn.so || (echo "Missing Android x86_64 .so" && exit 1)
+          echo "All React Native binaries verified"
+
       - name: Publish dry-run for all packages
         run: |
           npm publish ./platform-packages/node-darwin-x64 --dry-run --access public

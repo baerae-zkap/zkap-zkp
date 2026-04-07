@@ -6,10 +6,18 @@
   "types": "./src/index.ts",
   "files": [
     "src/",
-    "ios/",
-    "android/",
+    "ios/ZkapSdkModule.podspec",
+    "ios/ZkapSdkModule.swift",
+    "ios/include/",
+    "ios/ZkapZkp.xcframework/",
+    "android/src/",
+    "android/build.gradle",
+    "android/libs/",
     "expo-module.config.json"
   ],
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
   "engines": {
     "node": ">=18"
   },
