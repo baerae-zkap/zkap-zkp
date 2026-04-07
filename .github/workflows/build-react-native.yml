@@ -1,0 +1,129 @@
+name: Build React Native
+
+on:
+  push:
+    branches: [develop]
+    tags: ['v*']
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ──────────────────────────────────────────────
+  # iOS builds (3 targets, macOS runner required)
+  # ──────────────────────────────────────────────
+  build-ios:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-ios
+            name: ios-arm64
+            binary: libzkap_zkp_rn.a
+            artifact: rn-ios-arm64
+
+          - target: aarch64-apple-ios-sim
+            name: ios-sim-arm64
+            binary: libzkap_zkp_rn.a
+            artifact: rn-ios-sim-arm64
+
+          - target: x86_64-apple-ios
+            name: ios-sim-x86_64
+            binary: libzkap_zkp_rn.a
+            artifact: rn-ios-sim-x86_64
+
+    runs-on: macos-latest
+    name: Build ${{ matrix.name }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9  # stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Build
+        run: |
+          cargo build --release \
+            --target ${{ matrix.target }} \
+            -p zkap-zkp-rn
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: target/${{ matrix.target }}/release/${{ matrix.binary }}
+          if-no-files-found: error
+
+  # ──────────────────────────────────────────────
+  # Android builds (3 targets, ubuntu runner)
+  # ──────────────────────────────────────────────
+  build-android:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-linux-android
+            name: android-arm64
+            abi: arm64-v8a
+            artifact: rn-android-arm64
+
+          - target: armv7-linux-androideabi
+            name: android-armv7
+            abi: armeabi-v7a
+            artifact: rn-android-armv7
+
+          - target: x86_64-linux-android
+            name: android-x86_64
+            abi: x86_64
+            artifact: rn-android-x86_64
+
+    runs-on: ubuntu-latest
+    name: Build ${{ matrix.name }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9  # stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Setup Android NDK
+        uses: android-actions/setup-android@00854ea68c109d98c75d956347303bf7c45b0277  # v3
+        with:
+          cmdline-tools-version: "11076708"
+
+      - name: Configure NDK cross-compilation
+        run: |
+          NDK_HOME=$ANDROID_SDK_ROOT/ndk/$(ls $ANDROID_SDK_ROOT/ndk | sort -V | tail -1)
+          echo "ANDROID_NDK_HOME=$NDK_HOME" >> $GITHUB_ENV
+
+          # Set linker for each ABI
+          case "${{ matrix.target }}" in
+            aarch64-linux-android)
+              echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android21-clang" >> $GITHUB_ENV
+              ;;
+            armv7-linux-androideabi)
+              echo "CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_LINKER=$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi21-clang" >> $GITHUB_ENV
+              ;;
+            x86_64-linux-android)
+              echo "CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER=$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android21-clang" >> $GITHUB_ENV
+              ;;
+          esac
+
+      - name: Build
+        run: |
+          cargo build --release \
+            --target ${{ matrix.target }} \
+            -p zkap-zkp-rn
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: target/${{ matrix.target }}/release/libzkap_zkp_rn.so
+          if-no-files-found: error
