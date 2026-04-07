@@ -1,10 +1,25 @@
 {
   "name": "@baerae/zkap-zkp-wasm",
   "version": "0.1.0",
-  "description": "WebAssembly bindings for zkap-zkp — hash functions (generateHash, generateAnchor, generateAudHash, generateLeafHash). For proving/verification, use @baerae/zkap-zkp-node.",
-  "files": [
-    "pkg/"
-  ],
+  "description": "WebAssembly bindings for zkap-zkp — Poseidon hash and anchor generation. For proving/verification, use @baerae/zkap-zkp (Node.js).",
+  "exports": {
+    ".": {
+      "import": "./pkg/zkap_zkp_wasm.js",
+      "types": "./pkg/zkap_zkp_wasm.d.ts"
+    }
+  },
+  "files": ["pkg/"],
+  "sideEffects": false,
+  "engines": { "node": ">=18" },
+  "keywords": ["wasm", "webassembly", "zk", "poseidon", "zkap"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/baerae-zkap/zkap-zkp.git",
+    "directory": "packages/sdk-wasm"
+  },
+  "homepage": "https://github.com/baerae-zkap/zkap-zkp",
+  "bugs": "https://github.com/baerae-zkap/zkap-zkp/issues",
+  "license": "MIT OR Apache-2.0",
   "scripts": {
     "build": "wasm-pack build --target bundler --out-dir pkg --out-name zkap_zkp_wasm && node scripts/patch-pkg-name.mjs",
     "build:web": "wasm-pack build --target web --out-dir pkg-web --out-name zkap_zkp_wasm && node scripts/patch-pkg-name.mjs pkg-web",

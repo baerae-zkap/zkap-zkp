@@ -206,6 +206,18 @@ jobs:
           asset_name: zkap-zkp-node.linux-x64-musl.node
           asset_content_type: application/octet-stream
 
+      - name: Build sdk (TypeScript)
+        run: |
+          cd packages/sdk
+          npm install
+          npm run build
+
+      - name: Build sdk-wasm
+        run: |
+          cd packages/sdk-wasm
+          npm install
+          npm run build
+
       # npm dry-run: validate all tarballs before any publish (ARCH-5)
       - name: npm dry-run (all packages)
         env:
@@ -217,6 +229,7 @@ jobs:
           npm publish ./platform-packages/node-linux-x64-musl --dry-run --access public
           npm publish ./packages/sdk-node --dry-run --access public
           npm publish ./packages/sdk      --dry-run --access public
+          npm publish ./packages/sdk-wasm --dry-run --access public
 
       # Actual publish (skipped if workflow_dispatch dry_run_only=true)
       - name: npm publish
@@ -230,6 +243,7 @@ jobs:
           npm publish ./platform-packages/node-linux-x64-gnu  --access public
           npm publish ./platform-packages/node-linux-x64-musl --access public
           npm publish ./packages/sdk-node --access public
+          npm publish ./packages/sdk-wasm --access public
           npm publish ./packages/sdk      --access public
 
       # Publish Release (draft → published) after npm succeeds
