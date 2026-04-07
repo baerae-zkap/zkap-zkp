@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Security
+- Pin `cargo-bins/cargo-binstall` to commit SHA (v1.17.9) in CI workflows — previously used `@main` branch reference
+- Pin `addnab/docker-run-action` to commit SHA in CI workflows — previously used mutable `@v3` tag
+
 ## [0.1.0] - 2026-04-07
 
 ### Added
