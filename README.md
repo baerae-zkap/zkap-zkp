@@ -52,6 +52,11 @@ const hash = generateHash(['0x1', '0x2']);
 | `prove` | ✅ | ❌ | Server only (requires ~400MB proving key) |
 | `verify` | ✅ | ❌ | Server only (VK is on-chain) |
 
+## Examples
+
+- [`examples/node/`](./examples/node/) — hash and proof usage with `@baerae/zkap-zkp`
+- [`examples/browser/`](./examples/browser/) — WASM hash usage with Vite
+
 ## Development
 
 ```bash
@@ -67,9 +72,19 @@ cargo clippy --workspace -- -D warnings
 # Build WASM
 cd packages/sdk-wasm && wasm-pack build --target bundler
 
+# Build TypeScript facade
+cd packages/sdk && npm run build
+
 # Run Node.js tests
 cd packages/sdk-node && npm test
+cd packages/sdk && npm test
 ```
+
+## Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for build setup, testing, and PR guidelines.
+
+To report a security vulnerability, see [SECURITY.md](./SECURITY.md).
 
 ## License
 
