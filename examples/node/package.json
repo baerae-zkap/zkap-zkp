@@ -1,0 +1,8 @@
+{
+  "name": "zkap-zkp-node-example",
+  "private": true,
+  "type": "commonjs",
+  "dependencies": {
+    "@baerae/zkap-zkp-node": "file:../../packages/sdk-node"
+  }
+}
