@@ -8,10 +8,20 @@
       "types": "./pkg/zkap_zkp_wasm.d.ts"
     }
   },
-  "files": ["pkg/"],
+  "files": [
+    "pkg/"
+  ],
   "sideEffects": false,
-  "engines": { "node": ">=18" },
-  "keywords": ["wasm", "webassembly", "zk", "poseidon", "zkap"],
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "wasm",
+    "webassembly",
+    "zk",
+    "poseidon",
+    "zkap"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/baerae-zkap/zkap-zkp.git",

@@ -2,10 +2,16 @@
   "name": "@baerae/zkap-zkp-node-darwin-arm64",
   "version": "0.1.0",
   "description": "macOS arm64 binary for @baerae/zkap-zkp-node",
-  "os": ["darwin"],
-  "cpu": ["arm64"],
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "arm64"
+  ],
   "main": "zkap-zkp-node.darwin-arm64.node",
-  "files": ["zkap-zkp-node.darwin-arm64.node"],
+  "files": [
+    "zkap-zkp-node.darwin-arm64.node"
+  ],
   "license": "MIT OR Apache-2.0",
   "repository": {
     "type": "git",

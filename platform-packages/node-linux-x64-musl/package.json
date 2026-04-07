@@ -2,11 +2,19 @@
   "name": "@baerae/zkap-zkp-node-linux-x64-musl",
   "version": "0.1.0",
   "description": "Linux x64 (musl) binary for @baerae/zkap-zkp-node",
-  "os": ["linux"],
-  "cpu": ["x64"],
-  "libc": ["musl"],
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "libc": [
+    "musl"
+  ],
   "main": "zkap-zkp-node.linux-x64-musl.node",
-  "files": ["zkap-zkp-node.linux-x64-musl.node"],
+  "files": [
+    "zkap-zkp-node.linux-x64-musl.node"
+  ],
   "license": "MIT OR Apache-2.0",
   "repository": {
     "type": "git",

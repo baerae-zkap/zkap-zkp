@@ -115,6 +115,13 @@ jobs:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
+      # Sync all package.json versions and optionalDependencies from the git tag
+      - name: Sync package versions
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "Syncing packages to version $VERSION"
+          node scripts/sync-versions.mjs "$VERSION"
+
       # Download all four platform binaries into their platform-packages dirs
       - name: Download darwin-x64 binary
         uses: actions/download-artifact@v4
