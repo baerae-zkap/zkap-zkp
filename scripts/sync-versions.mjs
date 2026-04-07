@@ -77,4 +77,9 @@ updatePackageJson('packages/sdk-wasm', (pkg) => {
   pkg.version = version;
 });
 
+// 5. sdk-react-native
+updatePackageJson('packages/sdk-react-native', (pkg) => {
+  pkg.version = version;
+});
+
 console.log('\nDone.\n');

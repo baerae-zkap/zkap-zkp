@@ -230,6 +230,7 @@ jobs:
           npm publish ./platform-packages/node-linux-x64-musl --dry-run --access public
           npm publish ./packages/sdk-node --dry-run --access public
           npm publish ./packages/sdk-wasm --dry-run --access public
+          npm publish ./packages/sdk-react-native --dry-run --access public
           npm publish ./packages/sdk --dry-run --access public
 
       - name: Publish to npm
@@ -243,4 +244,5 @@ jobs:
           npm publish ./platform-packages/node-linux-x64-musl --access public --tag latest --provenance
           npm publish ./packages/sdk-node --access public --tag latest --provenance
           npm publish ./packages/sdk-wasm --access public --tag latest --provenance
+          npm publish ./packages/sdk-react-native --access public --tag latest --provenance
           npm publish ./packages/sdk --access public --tag latest --provenance

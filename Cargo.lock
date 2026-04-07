@@ -1565,6 +1565,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "zkap-zkp-rn"
+version = "0.1.0"
+dependencies = [
+ "ark-bn254",
+ "ark-ff",
+ "ark-groth16",
+ "ark-serialize",
+ "hex",
+ "serde",
+ "serde_json",
+ "zkap-service",
+]
+
+[[package]]
 name = "zkap-zkp-wasm"
 version = "0.1.0"
 dependencies = [
