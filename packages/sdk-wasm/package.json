@@ -1,0 +1,16 @@
+{
+  "name": "@baerae/zkap-zkp-wasm",
+  "version": "0.1.0",
+  "description": "WebAssembly bindings for zkap-zkp — hash functions (generateHash, generateAnchor, generateAudHash, generateLeafHash). For proving/verification, use @baerae/zkap-zkp-node.",
+  "files": [
+    "pkg/"
+  ],
+  "scripts": {
+    "build": "wasm-pack build --target bundler --out-dir pkg --out-name zkap_zkp_wasm && node scripts/patch-pkg-name.mjs",
+    "build:web": "wasm-pack build --target web --out-dir pkg-web --out-name zkap_zkp_wasm && node scripts/patch-pkg-name.mjs pkg-web",
+    "build:nodejs": "wasm-pack build --target nodejs --out-dir pkg-node --out-name zkap_zkp_wasm && node scripts/patch-pkg-name.mjs pkg-node"
+  },
+  "devDependencies": {
+    "wasm-pack": "^0.13"
+  }
+}
