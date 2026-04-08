@@ -17,6 +17,26 @@ cd packages/sdk-node && npm run build
 cd packages/sdk-wasm && npm run build
 ```
 
+### iOS XCFramework (sdk-react-native)
+
+The XCFramework is built by CI (`build-react-native.yml`). To build locally on macOS:
+
+**Prerequisites**
+
+```bash
+rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios
+```
+
+**Build**
+
+```bash
+bash scripts/build-ios-xcframework.sh
+```
+
+Output: `packages/sdk-react-native/ios/ZkapZkp.xcframework/`
+
+After building, run `pod install` in your Expo project to link the framework.
+
 ## Testing
 
 ```bash

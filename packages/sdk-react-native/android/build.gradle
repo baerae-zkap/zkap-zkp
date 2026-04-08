@@ -1,0 +1,30 @@
+apply plugin: 'com.android.library'
+apply plugin: 'kotlin-android'
+
+android {
+  compileSdkVersion 34
+  namespace "expo.modules.zkap"
+
+  defaultConfig {
+    minSdkVersion 24
+    targetSdkVersion 34
+  }
+
+  sourceSets {
+    main {
+      java.srcDirs += ['src/main/java']
+      jniLibs.srcDirs = ['libs']
+    }
+  }
+}
+
+repositories {
+  mavenCentral()
+}
+
+dependencies {
+  implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.0"
+  // expo-modules-core provides Module, ModuleDefinition, AsyncFunction, etc.
+  // compileOnly: provided by the consumer app at runtime
+  compileOnly project(':expo-modules-core')
+}

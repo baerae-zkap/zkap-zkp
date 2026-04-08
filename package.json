@@ -4,7 +4,8 @@
   "workspaces": [
     "packages/sdk-node",
     "packages/sdk",
-    "packages/sdk-wasm"
+    "packages/sdk-wasm",
+    "packages/sdk-react-native"
   ],
   "scripts": {
     "build:node": "cd packages/sdk-node && npm run build",

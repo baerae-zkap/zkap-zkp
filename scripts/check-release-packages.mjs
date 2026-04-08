@@ -33,6 +33,10 @@ const RELEASE_PACKAGES = [
     name: '@baerae/zkap-zkp-wasm',
   },
   {
+    path: 'packages/sdk-react-native/package.json',
+    name: '@baerae/zkap-zkp-react-native',
+  },
+  {
     path: 'packages/sdk/package.json',
     name: '@baerae/zkap-zkp',
   },

@@ -1,0 +1,9 @@
+# Native binaries — downloaded by CI, never committed
+android/libs/
+ios/ZkapZkp.xcframework/
+
+# Build caches
+android/build/
+android/.gradle/
+android/.cxx/
+ios/build/

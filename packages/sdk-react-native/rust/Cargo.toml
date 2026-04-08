@@ -1,0 +1,21 @@
+[package]
+name = "zkap-zkp-rn"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["staticlib", "cdylib"]
+
+[dependencies]
+zkap-service = { git = "https://github.com/snp-labs/zkap-circuit.git", branch = "develop" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+hex = "0.4"
+ark-bn254 = "0.5"
+ark-ff = "0.5"
+ark-serialize = "0.5"
+ark-groth16 = "0.5"
+
+# JNI bindings for Android (cdylib target only)
+[target.'cfg(target_os = "android")'.dependencies]
+jni = { version = "0.21", default-features = false }
