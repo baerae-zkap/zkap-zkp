@@ -4,6 +4,8 @@
   "description": "React Native SDK for zkap-zkp — on-device ZK proving with Groth16 (BN254) and Poseidon hash. Requires Expo New Architecture.",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
+  "source": "./src/index.ts",
+  "react-native": "./src/index.ts",
   "files": [
     "src/",
     "ios/ZkapSdkModule.podspec",
@@ -47,5 +49,8 @@
   },
   "devDependencies": {
     "typescript": "^5.4.5"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
