@@ -16,6 +16,13 @@
 
 Trusted publishing must be configured per npm package. The first publish must therefore happen package-by-package.
 
+Preferred path:
+
+1. Add repository secret `NPM_TOKEN`.
+2. Run [`.github/workflows/bootstrap-publish.yml`](../.github/workflows/bootstrap-publish.yml) with the target version.
+3. After bootstrap publish succeeds, connect each package to GitHub Actions trusted publishing on npm.
+4. From the next release onward, use [`.github/workflows/release.yml`](../.github/workflows/release.yml) only.
+
 Publish order:
 
 1. `@baerae/zkap-zkp-node-darwin-x64`

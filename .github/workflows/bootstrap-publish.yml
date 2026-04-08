@@ -1,0 +1,216 @@
+name: Bootstrap Publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to publish during bootstrap (for example 0.1.0)
+        required: true
+        type: string
+      skip_tests:
+        description: Skip tests before publish
+        type: boolean
+        default: false
+      dry_run_only:
+        description: Run publish dry-runs only
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bootstrap-publish
+  cancel-in-progress: false
+
+jobs:
+  build-node:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            binary_name: zkap-zkp-node.darwin-x64.node
+            artifact_name: binary-x86_64-apple-darwin
+            zigbuild: false
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            binary_name: zkap-zkp-node.darwin-arm64.node
+            artifact_name: binary-aarch64-apple-darwin
+            zigbuild: false
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            binary_name: zkap-zkp-node.linux-x64-gnu.node
+            artifact_name: binary-x86_64-unknown-linux-gnu
+            zigbuild: false
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+            binary_name: zkap-zkp-node.linux-x64-musl.node
+            artifact_name: binary-x86_64-unknown-linux-musl
+            zigbuild: true
+
+    runs-on: ${{ matrix.os }}
+    name: Build ${{ matrix.target }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cargo-binstall
+        uses: cargo-bins/cargo-binstall@c3664f981c04ab538bd76b0ba83680ee5bab631a
+
+      - name: Setup Node.js
+        if: ${{ !matrix.zigbuild }}
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      - name: Install @napi-rs/cli
+        if: ${{ !matrix.zigbuild }}
+        run: npm install -g @napi-rs/cli
+
+      - name: Build standard target
+        if: ${{ !matrix.zigbuild }}
+        working-directory: packages/sdk-node
+        run: napi build --platform --release --target ${{ matrix.target }}
+
+      - name: Build musl target
+        if: ${{ matrix.zigbuild }}
+        uses: addnab/docker-run-action@4f65fabd2431ebc8d299f8e5a018d79a769ae185
+        with:
+          image: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine
+          options: -v ${{ github.workspace }}:/build -w /build
+          run: |
+            apk add --no-cache gcc g++ musl-dev linux-headers cmake
+            rustup update stable
+            unset CC_x86_64_unknown_linux_musl
+            unset CXX_x86_64_unknown_linux_musl
+            cargo build --release --target x86_64-unknown-linux-musl -p zkap-zkp-node
+            cp target/x86_64-unknown-linux-musl/release/libzkap_zkp_node.so \
+              packages/sdk-node/zkap-zkp-node.linux-x64-musl.node
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: packages/sdk-node/${{ matrix.binary_name }}
+          if-no-files-found: error
+
+  publish:
+    needs: build-node
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Validate version format
+        shell: bash
+        run: |
+          VERSION="${{ inputs.version }}"
+          if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Invalid version format: $VERSION (expected x.y.z)"
+            exit 1
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate release package metadata
+        run: npm run check:release-packages -- "${{ inputs.version }}"
+
+      - name: Verify packages are still unpublished
+        run: npm run check:npm-latest
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Download darwin-x64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: binary-x86_64-apple-darwin
+          path: platform-packages/node-darwin-x64
+
+      - name: Download darwin-arm64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: binary-aarch64-apple-darwin
+          path: platform-packages/node-darwin-arm64
+
+      - name: Download linux-x64-gnu binary
+        uses: actions/download-artifact@v4
+        with:
+          name: binary-x86_64-unknown-linux-gnu
+          path: platform-packages/node-linux-x64-gnu
+
+      - name: Download linux-x64-musl binary
+        uses: actions/download-artifact@v4
+        with:
+          name: binary-x86_64-unknown-linux-musl
+          path: platform-packages/node-linux-x64-musl
+
+      - name: Copy Linux binaries into sdk-node for validation and packing
+        run: |
+          cp platform-packages/node-linux-x64-gnu/*.node packages/sdk-node/
+          cp platform-packages/node-linux-x64-musl/*.node packages/sdk-node/
+
+      - name: Run Rust tests
+        if: ${{ !inputs.skip_tests }}
+        run: cargo test --workspace
+
+      - name: Run sdk-node tests
+        if: ${{ !inputs.skip_tests }}
+        run: npm --workspace packages/sdk-node test
+
+      - name: Build sdk
+        run: npm --workspace packages/sdk run build
+
+      - name: Build sdk-wasm
+        run: npm --workspace packages/sdk-wasm run build
+
+      - name: Run sdk tests
+        if: ${{ !inputs.skip_tests }}
+        run: npm --workspace packages/sdk test
+
+      - name: Publish dry-run for all packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          npm publish ./platform-packages/node-darwin-x64 --dry-run --access public
+          npm publish ./platform-packages/node-darwin-arm64 --dry-run --access public
+          npm publish ./platform-packages/node-linux-x64-gnu --dry-run --access public
+          npm publish ./platform-packages/node-linux-x64-musl --dry-run --access public
+          npm publish ./packages/sdk-node --dry-run --access public
+          npm publish ./packages/sdk-wasm --dry-run --access public
+          npm publish ./packages/sdk --dry-run --access public
+
+      - name: Bootstrap publish to npm
+        if: ${{ !inputs.dry_run_only }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          npm publish ./platform-packages/node-darwin-x64 --access public
+          npm publish ./platform-packages/node-darwin-arm64 --access public
+          npm publish ./platform-packages/node-linux-x64-gnu --access public
+          npm publish ./platform-packages/node-linux-x64-musl --access public
+          npm publish ./packages/sdk-node --access public
+          npm publish ./packages/sdk-wasm --access public
+          npm publish ./packages/sdk --access public
