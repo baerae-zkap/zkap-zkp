@@ -33,17 +33,22 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/baerae-zkap/zkap-zkp.git",
+    "url": "git+https://github.com/baerae-zkap/zkap-zkp.git",
     "directory": "packages/sdk"
   },
   "homepage": "https://github.com/baerae-zkap/zkap-zkp",
   "bugs": "https://github.com/baerae-zkap/zkap-zkp/issues",
   "license": "MIT OR Apache-2.0",
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
   "dependencies": {
-    "@baerae/zkap-zkp-node": "*"
+    "@baerae/zkap-zkp-node": "0.1.0"
   },
   "scripts": {
     "build": "tsup",
+    "prepack": "npm run build",
     "test": "ava"
   },
   "devDependencies": {

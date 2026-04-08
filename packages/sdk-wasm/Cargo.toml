@@ -2,6 +2,8 @@
 name = "zkap-zkp-wasm"
 version = "0.1.0"
 edition = "2021"
+description = "WebAssembly bindings for zkap-zkp"
+repository = "https://github.com/baerae-zkap/zkap-zkp"
 license = "MIT OR Apache-2.0"
 
 [package.metadata.wasm-pack.profile.release]

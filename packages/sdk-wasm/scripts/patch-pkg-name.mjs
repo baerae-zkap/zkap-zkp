@@ -1,15 +1,21 @@
 #!/usr/bin/env node
-// Patches the wasm-pack generated package.json to use the scoped npm name.
-// wasm-pack derives the name from the Cargo crate name (zkap-zkp-wasm),
-// but we publish as @baerae/zkap-zkp-wasm.
+// Keeps the wasm-pack generated package metadata aligned with the package root.
 
-import { readFileSync, writeFileSync } from 'node:fs'
+import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 const outDir = process.argv[2] ?? 'pkg'
+const rootPkgJsonPath = resolve(import.meta.dirname, '..', 'package.json')
 const pkgJsonPath = resolve(import.meta.dirname, '..', outDir, 'package.json')
+const pkgGitignorePath = resolve(import.meta.dirname, '..', outDir, '.gitignore')
 
+const rootPkg = JSON.parse(readFileSync(rootPkgJsonPath, 'utf8'))
 const pkg = JSON.parse(readFileSync(pkgJsonPath, 'utf8'))
-pkg.name = '@baerae/zkap-zkp-wasm'
+pkg.name = rootPkg.name
+pkg.version = rootPkg.version
+pkg.license = rootPkg.license
+pkg.repository = rootPkg.repository
+pkg.sideEffects = rootPkg.sideEffects
 writeFileSync(pkgJsonPath, JSON.stringify(pkg, null, 2) + '\n')
-console.log(`Patched ${pkgJsonPath}: name → ${pkg.name}`)
+rmSync(pkgGitignorePath, { force: true })
+console.log(`Patched ${pkgJsonPath}: aligned metadata with ${rootPkgJsonPath}`)

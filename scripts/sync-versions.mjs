@@ -3,7 +3,7 @@
  * sync-versions.mjs
  *
  * Synchronizes the version field across all published packages and updates
- * optionalDependencies in packages/sdk-node to match.
+ * internal package dependency references to match.
  *
  * Usage:
  *   node scripts/sync-versions.mjs <version>
@@ -67,6 +67,9 @@ updatePackageJson('packages/sdk-node', (pkg) => {
 // 3. sdk facade
 updatePackageJson('packages/sdk', (pkg) => {
   pkg.version = version;
+  if (pkg.dependencies?.['@baerae/zkap-zkp-node']) {
+    pkg.dependencies['@baerae/zkap-zkp-node'] = version;
+  }
 });
 
 // 4. sdk-wasm

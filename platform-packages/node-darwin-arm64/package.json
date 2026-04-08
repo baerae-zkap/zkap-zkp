@@ -13,9 +13,13 @@
     "zkap-zkp-node.darwin-arm64.node"
   ],
   "license": "MIT OR Apache-2.0",
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
   "repository": {
     "type": "git",
-    "url": "https://github.com/baerae-zkap/zkap-zkp.git",
+    "url": "git+https://github.com/baerae-zkap/zkap-zkp.git",
     "directory": "platform-packages/node-darwin-arm64"
   }
 }

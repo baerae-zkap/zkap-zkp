@@ -7,6 +7,8 @@
     "packages/sdk-wasm"
   ],
   "scripts": {
-    "build:node": "cd packages/sdk-node && npm run build"
+    "build:node": "cd packages/sdk-node && npm run build",
+    "check:release-packages": "node scripts/check-release-packages.mjs",
+    "check:npm-latest": "node scripts/check-npm-latest.mjs"
   }
 }
