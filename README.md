@@ -9,6 +9,10 @@ Zero-Knowledge Proof SDK for Node.js and WebAssembly, based on Groth16 (BN254) a
 | [`@baerae/zkap-zkp`](./packages/sdk) | Node.js | `npm install @baerae/zkap-zkp` |
 | [`@baerae/zkap-zkp-wasm`](./packages/sdk-wasm) | Browser / WebAssembly | `npm install @baerae/zkap-zkp-wasm` |
 
+`@baerae/zkap-zkp` resolves its native bindings through internal npm subpackages:
+`@baerae/zkap-zkp-node` plus platform-specific optional dependencies. Most users should
+ignore those internal packages and install the two public entrypoints above.
+
 ## Quick Start — Node.js
 
 ```bash
@@ -83,6 +87,7 @@ cd packages/sdk && npm test
 ## Contributing
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for build setup, testing, and PR guidelines.
+For release operations and first-publish bootstrapping, see [docs/release-runbook.md](./docs/release-runbook.md).
 
 To report a security vulnerability, see [SECURITY.md](./SECURITY.md).
 

@@ -1,0 +1,88 @@
+name: Published Install Smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Published npm version to verify (for example 0.1.0 or latest)
+        required: true
+        default: latest
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  macos-node-smoke:
+    name: macOS published install smoke
+    runs-on: macos-latest
+
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Resolve npm package spec
+        id: spec
+        shell: bash
+        run: |
+          VERSION="${{ inputs.version }}"
+          if [ "$VERSION" = "latest" ]; then
+            SPEC="@baerae/zkap-zkp"
+          else
+            SPEC="@baerae/zkap-zkp@$VERSION"
+          fi
+          echo "value=$SPEC" >> "$GITHUB_OUTPUT"
+
+      - name: Install and run smoke test
+        shell: bash
+        run: |
+          TMP_DIR="$(mktemp -d)"
+          cd "$TMP_DIR"
+          npm init -y
+          npm install "${{ steps.spec.outputs.value }}"
+          node - <<'EOF'
+          const { generateHash } = require('@baerae/zkap-zkp')
+          const result = generateHash(['1'])
+          if (!/^0x[0-9a-f]{64}$/i.test(result)) {
+            throw new Error(`unexpected hash output: ${result}`)
+          }
+          console.log(`macOS smoke OK: ${result}`)
+          EOF
+
+  linux-musl-node-smoke:
+    name: Linux x64 musl published install smoke
+    runs-on: ubuntu-latest
+    container:
+      image: node:20-alpine
+
+    steps:
+      - name: Resolve npm package spec
+        id: spec
+        shell: sh
+        run: |
+          VERSION="${{ inputs.version }}"
+          if [ "$VERSION" = "latest" ]; then
+            SPEC="@baerae/zkap-zkp"
+          else
+            SPEC="@baerae/zkap-zkp@$VERSION"
+          fi
+          echo "value=$SPEC" >> "$GITHUB_OUTPUT"
+
+      - name: Install and run smoke test
+        shell: sh
+        run: |
+          TMP_DIR="$(mktemp -d)"
+          cd "$TMP_DIR"
+          npm init -y
+          npm install "${{ steps.spec.outputs.value }}"
+          node - <<'EOF'
+          const { generateHash } = require('@baerae/zkap-zkp')
+          const result = generateHash(['1'])
+          if (!/^0x[0-9a-f]{64}$/i.test(result)) {
+            throw new Error(`unexpected hash output: ${result}`)
+          }
+          console.log(`linux-musl smoke OK: ${result}`)
+          EOF

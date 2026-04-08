@@ -44,16 +44,37 @@ cd packages/sdk-wasm && wasm-pack test --node
 
 ## Release
 
-Version numbers are synchronized across all packages by running:
+Release versions are committed in each publishable `package.json`. To prepare a release,
+sync all package versions first:
 
 ```bash
 node scripts/sync-versions.mjs <version>
 # Example: node scripts/sync-versions.mjs 0.2.0
 ```
 
-This updates `version` in all 7 `package.json` files and syncs `optionalDependencies` in
-`packages/sdk-node`. Actual publishing is triggered by pushing a `v*` tag, which runs
-`.github/workflows/release.yml`.
+This updates the 7 publishable packages and synchronizes the internal package references in
+`packages/sdk` and `packages/sdk-node`.
+
+Release rules:
+
+1. Commit the synchronized version changes before tagging.
+2. Keep the root [`package-lock.json`](./package-lock.json) committed and up to date only when dependencies change.
+3. Publish only through [`.github/workflows/release.yml`](./.github/workflows/release.yml).
+4. The workflow validates:
+   - all publishable package versions match the tag
+   - internal package dependency versions are synchronized
+   - each package version is newer than the npm `latest` tag, unless it is the first publish
+5. Publish order is fixed:
+   - platform packages
+   - `@baerae/zkap-zkp-node`
+   - `@baerae/zkap-zkp-wasm`
+   - `@baerae/zkap-zkp`
+
+Trusted publishing notes:
+
+- After the first manual/bootstrap publish of each package, connect the package to the GitHub Actions trusted publisher on npm.
+- Once all 7 packages are linked, release publishing runs token-free through OIDC.
+- See [docs/release-runbook.md](./docs/release-runbook.md) for the first-publish sequence and npm setup checklist.
 
 ## Commit Messages
 
