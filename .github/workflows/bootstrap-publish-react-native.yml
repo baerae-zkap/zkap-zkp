@@ -1,0 +1,250 @@
+name: Bootstrap Publish React Native
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to publish for @baerae/zkap-zkp-react-native
+        required: true
+        type: string
+      dry_run_only:
+        description: Run publish dry-run only
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bootstrap-publish-react-native
+  cancel-in-progress: false
+
+jobs:
+  build-ios:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-ios
+            name: ios-arm64
+            binary: libzkap_zkp_rn.a
+            artifact: rn-ios-arm64
+          - target: aarch64-apple-ios-sim
+            name: ios-sim-arm64
+            binary: libzkap_zkp_rn.a
+            artifact: rn-ios-sim-arm64
+          - target: x86_64-apple-ios
+            name: ios-sim-x86_64
+            binary: libzkap_zkp_rn.a
+            artifact: rn-ios-sim-x86_64
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: ${{ matrix.target }}
+
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }} -p zkap-zkp-rn
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: target/${{ matrix.target }}/release/${{ matrix.binary }}
+          if-no-files-found: error
+
+  build-android:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-linux-android
+            abi: arm64-v8a
+            artifact: rn-android-arm64
+          - target: armv7-linux-androideabi
+            abi: armeabi-v7a
+            artifact: rn-android-armv7
+          - target: x86_64-linux-android
+            abi: x86_64
+            artifact: rn-android-x86_64
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: ${{ matrix.target }}
+
+      - name: Setup Android NDK
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: "11076708"
+
+      - name: Configure NDK cross-compilation
+        run: |
+          NDK_HOME=$ANDROID_SDK_ROOT/ndk/$(ls $ANDROID_SDK_ROOT/ndk | sort -V | tail -1)
+          echo "ANDROID_NDK_HOME=$NDK_HOME" >> $GITHUB_ENV
+          case "${{ matrix.target }}" in
+            aarch64-linux-android)
+              echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android21-clang" >> $GITHUB_ENV
+              ;;
+            armv7-linux-androideabi)
+              echo "CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_LINKER=$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi21-clang" >> $GITHUB_ENV
+              ;;
+            x86_64-linux-android)
+              echo "CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER=$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android21-clang" >> $GITHUB_ENV
+              ;;
+          esac
+
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }} -p zkap-zkp-rn
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: target/${{ matrix.target }}/release/libzkap_zkp_rn.so
+          if-no-files-found: error
+
+  assemble-ios-xcframework:
+    needs: build-ios
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download arm64 device artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: rn-ios-arm64
+          path: rn-ios-arm64
+
+      - name: Download arm64 simulator artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: rn-ios-sim-arm64
+          path: rn-ios-sim-arm64
+
+      - name: Download x86_64 simulator artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: rn-ios-sim-x86_64
+          path: rn-ios-sim-x86_64
+
+      - name: Create fat simulator library
+        run: |
+          lipo -create \
+            rn-ios-sim-arm64/libzkap_zkp_rn.a \
+            rn-ios-sim-x86_64/libzkap_zkp_rn.a \
+            -output libzkap_zkp_rn_sim.a
+
+      - name: Create XCFramework
+        run: |
+          xcodebuild -create-xcframework \
+            -library rn-ios-arm64/libzkap_zkp_rn.a \
+            -headers packages/sdk-react-native/ios/include \
+            -library libzkap_zkp_rn_sim.a \
+            -headers packages/sdk-react-native/ios/include \
+            -output ZkapZkp.xcframework
+
+      - name: Upload XCFramework artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rn-ios-xcframework
+          path: ZkapZkp.xcframework
+          if-no-files-found: error
+
+  publish:
+    needs: [assemble-ios-xcframework, build-android]
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Validate version format
+        shell: bash
+        run: |
+          VERSION="${{ inputs.version }}"
+          if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Invalid version format: $VERSION (expected x.y.z)"
+            exit 1
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate react-native package metadata
+        run: |
+          VERSION="${{ inputs.version }}"
+          PKG_VERSION="$(node -p "require('./packages/sdk-react-native/package.json').version")"
+          if [ "$PKG_VERSION" != "$VERSION" ]; then
+            echo "::error::packages/sdk-react-native/package.json version $PKG_VERSION does not match requested $VERSION"
+            exit 1
+          fi
+
+      - name: Verify react-native package is still unpublished
+        shell: bash
+        run: |
+          LATEST="$(npm view @baerae/zkap-zkp-react-native dist-tags.latest --registry https://registry.npmjs.org 2>/dev/null || true)"
+          if [ -n "$LATEST" ]; then
+            echo "::error::@baerae/zkap-zkp-react-native already has latest=$LATEST on npm"
+            exit 1
+          fi
+
+      - name: Download iOS XCFramework
+        uses: actions/download-artifact@v4
+        with:
+          name: rn-ios-xcframework
+          path: packages/sdk-react-native/ios/ZkapZkp.xcframework
+
+      - name: Download Android arm64 .so
+        uses: actions/download-artifact@v4
+        with:
+          name: rn-android-arm64
+          path: packages/sdk-react-native/android/libs/arm64-v8a
+
+      - name: Download Android armv7 .so
+        uses: actions/download-artifact@v4
+        with:
+          name: rn-android-armv7
+          path: packages/sdk-react-native/android/libs/armeabi-v7a
+
+      - name: Download Android x86_64 .so
+        uses: actions/download-artifact@v4
+        with:
+          name: rn-android-x86_64
+          path: packages/sdk-react-native/android/libs/x86_64
+
+      - name: Verify package binaries
+        run: |
+          test -d packages/sdk-react-native/ios/ZkapZkp.xcframework
+          test -f packages/sdk-react-native/android/libs/arm64-v8a/libzkap_zkp_rn.so
+          test -f packages/sdk-react-native/android/libs/armeabi-v7a/libzkap_zkp_rn.so
+          test -f packages/sdk-react-native/android/libs/x86_64/libzkap_zkp_rn.so
+
+      - name: Publish dry-run
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish ./packages/sdk-react-native --dry-run --access public
+
+      - name: Bootstrap publish react-native package
+        if: ${{ !inputs.dry_run_only }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish ./packages/sdk-react-native --access public
