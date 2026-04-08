@@ -85,6 +85,7 @@ jobs:
         run: napi build --platform --release --target ${{ matrix.target }}
 
       - name: Normalize artifact filename
+        if: ${{ !matrix.zigbuild }}
         working-directory: packages/sdk-node
         shell: bash
         run: |
@@ -112,6 +113,12 @@ jobs:
             cargo build --release --target x86_64-unknown-linux-musl -p zkap-zkp-node
             cp target/x86_64-unknown-linux-musl/release/libzkap_zkp_node.so \
               packages/sdk-node/index.linux-x64-musl.node
+
+      - name: Verify musl artifact
+        if: ${{ matrix.zigbuild }}
+        working-directory: packages/sdk-node
+        shell: bash
+        run: test -f "${{ matrix.binary_name }}"
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
