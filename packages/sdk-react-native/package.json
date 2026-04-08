@@ -7,6 +7,7 @@
   "source": "./src/index.ts",
   "react-native": "./src/index.ts",
   "files": [
+    "README.md",
     "src/",
     "ios/ZkapSdkModule.podspec",
     "ios/ZkapSdkModule.swift",
@@ -34,7 +35,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/baerae-zkap/zkap-zkp.git",
+    "url": "git+https://github.com/baerae-zkap/zkap-zkp.git",
     "directory": "packages/sdk-react-native"
   },
   "homepage": "https://github.com/baerae-zkap/zkap-zkp",
@@ -51,6 +52,7 @@
     "typescript": "^5.4.5"
   },
   "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
     "access": "public"
   }
 }

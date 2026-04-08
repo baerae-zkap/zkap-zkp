@@ -72,7 +72,7 @@ node scripts/sync-versions.mjs <version>
 # Example: node scripts/sync-versions.mjs 0.2.0
 ```
 
-This updates the 7 publishable packages and synchronizes the internal package references in
+This updates the 8 publishable packages and synchronizes the internal package references in
 `packages/sdk` and `packages/sdk-node`.
 
 Release rules:
@@ -88,12 +88,13 @@ Release rules:
    - platform packages
    - `@baerae/zkap-zkp-node`
    - `@baerae/zkap-zkp-wasm`
+   - `@baerae/zkap-zkp-react-native`
    - `@baerae/zkap-zkp`
 
 Trusted publishing notes:
 
 - After the first manual/bootstrap publish of each package, connect the package to the GitHub Actions trusted publisher on npm.
-- Once all 7 packages are linked, release publishing runs token-free through OIDC.
+- Once all 8 packages are linked, release publishing runs token-free through OIDC.
 - See [docs/release-runbook.md](./docs/release-runbook.md) for the first-publish sequence and npm setup checklist.
 
 ## Commit Messages
