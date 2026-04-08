@@ -11,9 +11,9 @@
   "libc": [
     "musl"
   ],
-  "main": "zkap-zkp-node.linux-x64-musl.node",
+  "main": "index.linux-x64-musl.node",
   "files": [
-    "zkap-zkp-node.linux-x64-musl.node"
+    "index.linux-x64-musl.node"
   ],
   "license": "MIT OR Apache-2.0",
   "publishConfig": {

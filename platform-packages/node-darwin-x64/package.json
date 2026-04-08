@@ -8,9 +8,9 @@
   "cpu": [
     "x64"
   ],
-  "main": "zkap-zkp-node.darwin-x64.node",
+  "main": "index.darwin-x64.node",
   "files": [
-    "zkap-zkp-node.darwin-x64.node"
+    "index.darwin-x64.node"
   ],
   "license": "MIT OR Apache-2.0",
   "publishConfig": {

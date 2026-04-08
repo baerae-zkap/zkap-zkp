@@ -35,22 +35,22 @@ jobs:
         include:
           - target: x86_64-apple-darwin
             os: macos-latest
-            binary_name: zkap-zkp-node.darwin-x64.node
+            binary_name: index.darwin-x64.node
             artifact_name: binary-x86_64-apple-darwin
             zigbuild: false
           - target: aarch64-apple-darwin
             os: macos-latest
-            binary_name: zkap-zkp-node.darwin-arm64.node
+            binary_name: index.darwin-arm64.node
             artifact_name: binary-aarch64-apple-darwin
             zigbuild: false
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
-            binary_name: zkap-zkp-node.linux-x64-gnu.node
+            binary_name: index.linux-x64-gnu.node
             artifact_name: binary-x86_64-unknown-linux-gnu
             zigbuild: false
           - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
-            binary_name: zkap-zkp-node.linux-x64-musl.node
+            binary_name: index.linux-x64-musl.node
             artifact_name: binary-x86_64-unknown-linux-musl
             zigbuild: true
 
@@ -97,7 +97,7 @@ jobs:
             unset CXX_x86_64_unknown_linux_musl
             cargo build --release --target x86_64-unknown-linux-musl -p zkap-zkp-node
             cp target/x86_64-unknown-linux-musl/release/libzkap_zkp_node.so \
-              packages/sdk-node/zkap-zkp-node.linux-x64-musl.node
+              packages/sdk-node/index.linux-x64-musl.node
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4

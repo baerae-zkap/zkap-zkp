@@ -15,15 +15,19 @@ jobs:
           - target: x86_64-apple-darwin
             os: macos-latest
             zigbuild: false
+            binary_name: index.darwin-x64.node
           - target: aarch64-apple-darwin
             os: macos-latest
             zigbuild: false
+            binary_name: index.darwin-arm64.node
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
             zigbuild: false
+            binary_name: index.linux-x64-gnu.node
           - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
             zigbuild: true
+            binary_name: index.linux-x64-musl.node
 
     runs-on: ${{ matrix.os }}
     name: Build ${{ matrix.target }}
@@ -66,11 +70,11 @@ jobs:
             unset CC_x86_64_unknown_linux_musl
             unset CXX_x86_64_unknown_linux_musl
             cargo build --release --target x86_64-unknown-linux-musl -p zkap-zkp-node
-            cp target/x86_64-unknown-linux-musl/release/libzkap_zkp_node.so packages/sdk-node/zkap-zkp-node.linux-x64-musl.node
+            cp target/x86_64-unknown-linux-musl/release/libzkap_zkp_node.so packages/sdk-node/index.linux-x64-musl.node
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: bindings-${{ matrix.target }}
-          path: packages/sdk-node/*.node
+          path: packages/sdk-node/${{ matrix.binary_name }}
           if-no-files-found: error
