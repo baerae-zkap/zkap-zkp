@@ -84,6 +84,20 @@ jobs:
         working-directory: packages/sdk-node
         run: napi build --platform --release --target ${{ matrix.target }}
 
+      - name: Normalize artifact filename
+        working-directory: packages/sdk-node
+        shell: bash
+        run: |
+          if [ -f "${{ matrix.binary_name }}" ]; then
+            exit 0
+          fi
+          FOUND="$(find . -maxdepth 1 -name '*.node' | head -n 1)"
+          if [ -z "$FOUND" ]; then
+            echo "::error::No .node artifact was produced"
+            exit 1
+          fi
+          mv "$FOUND" "${{ matrix.binary_name }}"
+
       - name: Build musl target
         if: ${{ matrix.zigbuild }}
         uses: addnab/docker-run-action@4f65fabd2431ebc8d299f8e5a018d79a769ae185
