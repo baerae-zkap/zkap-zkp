@@ -23,6 +23,38 @@ fn f_to_hex(f: ark_bn254::Fr) -> String {
     format!("0x{}", hex::encode(f.into_bigint().to_bytes_be()))
 }
 
+fn proof_to_solidity(proof: &ark_groth16::Proof<ark_bn254::Bn254>) -> Vec<String> {
+    let proof_a = vec![proof.a.x.to_string(), proof.a.y.to_string()];
+    let proof_b = vec![
+        proof.b.x.c1.to_string(),
+        proof.b.x.c0.to_string(),
+        proof.b.y.c1.to_string(),
+        proof.b.y.c0.to_string(),
+    ];
+    let proof_c = vec![proof.c.x.to_string(), proof.c.y.to_string()];
+    [proof_a, proof_b, proof_c].concat()
+}
+
+fn split_public_inputs(
+    pub_inputs: Vec<Vec<ark_bn254::Fr>>,
+) -> (Vec<String>, Vec<String>, Vec<String>) {
+    const JWT_EXP_INDEX: usize = 4;
+    const PARTIAL_RHS_INDEX: usize = 5;
+
+    if pub_inputs.is_empty() {
+        return (vec![], vec![], vec![]);
+    }
+    let jwt_exp_list = pub_inputs.iter().map(|row| row[JWT_EXP_INDEX].to_string()).collect();
+    let partial_rhs_list = pub_inputs.iter().map(|row| row[PARTIAL_RHS_INDEX].to_string()).collect();
+    let shared_inputs = pub_inputs[0]
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| *i != JWT_EXP_INDEX && *i != PARTIAL_RHS_INDEX)
+        .map(|(_, f)| f.to_string())
+        .collect();
+    (shared_inputs, partial_rhs_list, jwt_exp_list)
+}
+
 /// Allocate a CString response on the heap and return a raw pointer.
 /// The caller is responsible for freeing it with `zkap_free_string`.
 fn to_c_string(s: String) -> *mut c_char {
@@ -299,7 +331,6 @@ pub unsafe extern "C" fn zkap_generate_leaf_hash(input_json: *const c_char) -> *
 /// `input_json` must be a valid null-terminated UTF-8 C string.
 #[no_mangle]
 pub unsafe extern "C" fn zkap_prove(input_json: *const c_char) -> *mut c_char {
-    use ark_serialize::CanonicalSerialize;
     use std::path::PathBuf;
     use zkap_service::RawProofRequest;
 
@@ -372,34 +403,15 @@ pub unsafe extern "C" fn zkap_prove(input_json: *const c_char) -> *mut c_char {
 
     match zkap_service::prove(&params, raw) {
         Ok((proofs, pub_inputs)) => {
-            let mut serialize_err: Option<String> = None;
-            let proof_hexes: Vec<String> = proofs
-                .iter()
-                .map(|p| {
-                    let mut buf = Vec::new();
-                    match p.serialize_compressed(&mut buf) {
-                        Ok(()) => hex::encode(&buf),
-                        Err(e) => {
-                            serialize_err = Some(format!("proof serialization failed: {}", e));
-                            String::new()
-                        }
-                    }
-                })
-                .collect();
-
-            if let Some(err) = serialize_err {
-                return error_response(&err);
-            }
-
-            let public_inputs: Vec<Vec<String>> = pub_inputs
-                .into_iter()
-                .map(|row| row.into_iter().map(f_to_hex).collect())
-                .collect();
+            let proofs_solidity: Vec<Vec<String>> = proofs.iter().map(proof_to_solidity).collect();
+            let (shared_inputs, partial_rhs_list, jwt_exp_list) = split_public_inputs(pub_inputs);
 
             to_c_string(
                 serde_json::json!({
-                    "proofs": proof_hexes,
-                    "public_inputs": public_inputs
+                    "proofs": proofs_solidity,
+                    "shared_inputs": shared_inputs,
+                    "partial_rhs_list": partial_rhs_list,
+                    "jwt_exp_list": jwt_exp_list
                 })
                 .to_string(),
             )

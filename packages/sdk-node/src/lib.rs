@@ -199,14 +199,52 @@ pub struct JsProofRequest {
     pub aud_list: Vec<String>,
 }
 
-/// Output of `prove`: serialized proof bytes and hex-encoded public inputs per proof.
+/// Output of `prove`: Solidity-compatible proof strings and split public inputs per JWT.
 #[cfg(feature = "proof")]
 #[napi(object)]
 pub struct JsProofOutput {
-    /// `ark_serialize` bytes for each generated Groth16 proof (Node.js Buffer per proof).
-    pub proofs: Vec<napi::bindgen_prelude::Buffer>,
-    /// Public inputs per proof, each field element as a 0x-prefixed hex string.
-    pub public_inputs: Vec<Vec<String>>,
+    /// Solidity-compatible proof strings per proof: [ax, ay, bx_c1, bx_c0, by_c1, by_c0, cx, cy]
+    pub proofs: Vec<Vec<String>>,
+    /// Public inputs shared across all JWTs (indices 0,1,2,3,6,7) as decimal strings
+    pub shared_inputs: Vec<String>,
+    /// partial_rhs per JWT (index 5) as decimal string
+    pub partial_rhs_list: Vec<String>,
+    /// jwt_exp per JWT (index 4) as decimal string
+    pub jwt_exp_list: Vec<String>,
+}
+
+#[cfg(feature = "proof")]
+fn proof_to_solidity(proof: &ark_groth16::Proof<ark_bn254::Bn254>) -> Vec<String> {
+    let proof_a = vec![proof.a.x.to_string(), proof.a.y.to_string()];
+    let proof_b = vec![
+        proof.b.x.c1.to_string(),
+        proof.b.x.c0.to_string(),
+        proof.b.y.c1.to_string(),
+        proof.b.y.c0.to_string(),
+    ];
+    let proof_c = vec![proof.c.x.to_string(), proof.c.y.to_string()];
+    [proof_a, proof_b, proof_c].concat()
+}
+
+#[cfg(feature = "proof")]
+fn split_public_inputs(
+    pub_inputs: Vec<Vec<ark_bn254::Fr>>,
+) -> (Vec<String>, Vec<String>, Vec<String>) {
+    const JWT_EXP_INDEX: usize = 4;
+    const PARTIAL_RHS_INDEX: usize = 5;
+
+    if pub_inputs.is_empty() {
+        return (vec![], vec![], vec![]);
+    }
+    let jwt_exp_list = pub_inputs.iter().map(|row| row[JWT_EXP_INDEX].to_string()).collect();
+    let partial_rhs_list = pub_inputs.iter().map(|row| row[PARTIAL_RHS_INDEX].to_string()).collect();
+    let shared_inputs = pub_inputs[0]
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| *i != JWT_EXP_INDEX && *i != PARTIAL_RHS_INDEX)
+        .map(|(_, f)| f.to_string())
+        .collect();
+    (shared_inputs, partial_rhs_list, jwt_exp_list)
 }
 
 /// Perform a Groth16 trusted setup for the ZKAP circuit.
@@ -248,7 +286,6 @@ pub fn groth16_setup(config: JsCircuitConfig) -> napi::Result<JsSetupOutput> {
 #[cfg(feature = "proof")]
 #[napi]
 pub fn prove(config: JsCircuitConfig, request: JsProofRequest) -> napi::Result<JsProofOutput> {
-    use ark_serialize::CanonicalSerialize;
     use std::path::PathBuf;
     use zkap_service::RawProofRequest;
 
@@ -269,24 +306,14 @@ pub fn prove(config: JsCircuitConfig, request: JsProofRequest) -> napi::Result<J
     let (proofs, pub_inputs) = zkap_service::prove(&params, raw)
         .map_err(|e| napi::Error::from_reason(e.to_string()))?;
 
-    let proofs: napi::Result<Vec<napi::bindgen_prelude::Buffer>> = proofs
-        .iter()
-        .map(|p| {
-            let mut buf: Vec<u8> = Vec::new();
-            p.serialize_compressed(&mut buf)
-                .map_err(|e| napi::Error::from_reason(format!("Failed to serialize proof: {e}")))?;
-            Ok(buf.into())
-        })
-        .collect();
-
-    let public_inputs = pub_inputs
-        .into_iter()
-        .map(|row| row.into_iter().map(f_to_hex).collect())
-        .collect();
+    let proofs: Vec<Vec<String>> = proofs.iter().map(proof_to_solidity).collect();
+    let (shared_inputs, partial_rhs_list, jwt_exp_list) = split_public_inputs(pub_inputs);
 
     Ok(JsProofOutput {
-        proofs: proofs?,
-        public_inputs,
+        proofs,
+        shared_inputs,
+        partial_rhs_list,
+        jwt_exp_list,
     })
 }
 
