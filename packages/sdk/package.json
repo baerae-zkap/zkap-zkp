@@ -44,7 +44,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@baerae/zkap-zkp-node": "0.1.0"
+    "@baerae/zkap-zkp-node": "0.1.1"
   },
   "scripts": {
     "build": "tsup",
