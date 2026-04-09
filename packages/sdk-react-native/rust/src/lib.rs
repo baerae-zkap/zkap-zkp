@@ -23,36 +23,61 @@ fn f_to_hex(f: ark_bn254::Fr) -> String {
     format!("0x{}", hex::encode(f.into_bigint().to_bytes_be()))
 }
 
+fn fp_to_solidity<F: std::fmt::Display + ark_ff::Field>(f: &F) -> String {
+    if f.is_zero() { "0".to_string() } else { f.to_string() }
+}
+
 fn proof_to_solidity(proof: &ark_groth16::Proof<ark_bn254::Bn254>) -> Vec<String> {
-    let proof_a = vec![proof.a.x.to_string(), proof.a.y.to_string()];
+    let proof_a = vec![fp_to_solidity(&proof.a.x), fp_to_solidity(&proof.a.y)];
     let proof_b = vec![
-        proof.b.x.c1.to_string(),
-        proof.b.x.c0.to_string(),
-        proof.b.y.c1.to_string(),
-        proof.b.y.c0.to_string(),
+        fp_to_solidity(&proof.b.x.c1),
+        fp_to_solidity(&proof.b.x.c0),
+        fp_to_solidity(&proof.b.y.c1),
+        fp_to_solidity(&proof.b.y.c0),
     ];
-    let proof_c = vec![proof.c.x.to_string(), proof.c.y.to_string()];
+    let proof_c = vec![fp_to_solidity(&proof.c.x), fp_to_solidity(&proof.c.y)];
     [proof_a, proof_b, proof_c].concat()
 }
 
+#[allow(clippy::type_complexity)]
 fn split_public_inputs(
     pub_inputs: Vec<Vec<ark_bn254::Fr>>,
-) -> (Vec<String>, Vec<String>, Vec<String>) {
+) -> Result<(Vec<String>, Vec<String>, Vec<String>), String> {
     const JWT_EXP_INDEX: usize = 4;
     const PARTIAL_RHS_INDEX: usize = 5;
+    const SHARED_INDICES: &[usize] = &[0, 1, 2, 3, 6, 7];
 
     if pub_inputs.is_empty() {
-        return (vec![], vec![], vec![]);
+        return Ok((vec![], vec![], vec![]));
     }
-    let jwt_exp_list = pub_inputs.iter().map(|row| row[JWT_EXP_INDEX].to_string()).collect();
-    let partial_rhs_list = pub_inputs.iter().map(|row| row[PARTIAL_RHS_INDEX].to_string()).collect();
+    for (row_idx, row) in pub_inputs.iter().enumerate().skip(1) {
+        for &idx in SHARED_INDICES {
+            if row.get(idx) != pub_inputs[0].get(idx) {
+                return Err(format!(
+                    "shared public input mismatch at index {idx}: JWT[0]={:?} JWT[{row_idx}]={:?}",
+                    pub_inputs[0].get(idx).map(|f| f.to_string()),
+                    row.get(idx).map(|f| f.to_string()),
+                ));
+            }
+        }
+    }
+    let jwt_exp_list = pub_inputs.iter()
+        .map(|row| row.get(JWT_EXP_INDEX)
+            .map(|f| f.to_string())
+            .ok_or_else(|| format!("row has fewer than {} elements", JWT_EXP_INDEX + 1)))
+        .collect::<Result<Vec<_>, _>>()?;
+    let partial_rhs_list = pub_inputs.iter()
+        .map(|row| row.get(PARTIAL_RHS_INDEX)
+            .map(|f| f.to_string())
+            .ok_or_else(|| format!("row has fewer than {} elements", PARTIAL_RHS_INDEX + 1)))
+        .collect::<Result<Vec<_>, _>>()?;
     let shared_inputs = pub_inputs[0]
         .iter()
         .enumerate()
         .filter(|(i, _)| *i != JWT_EXP_INDEX && *i != PARTIAL_RHS_INDEX)
         .map(|(_, f)| f.to_string())
         .collect();
-    (shared_inputs, partial_rhs_list, jwt_exp_list)
+    Ok((shared_inputs, partial_rhs_list, jwt_exp_list))
 }
 
 /// Allocate a CString response on the heap and return a raw pointer.
@@ -404,17 +429,18 @@ pub unsafe extern "C" fn zkap_prove(input_json: *const c_char) -> *mut c_char {
     match zkap_service::prove(&params, raw) {
         Ok((proofs, pub_inputs)) => {
             let proofs_solidity: Vec<Vec<String>> = proofs.iter().map(proof_to_solidity).collect();
-            let (shared_inputs, partial_rhs_list, jwt_exp_list) = split_public_inputs(pub_inputs);
-
-            to_c_string(
-                serde_json::json!({
-                    "proofs": proofs_solidity,
-                    "shared_inputs": shared_inputs,
-                    "partial_rhs_list": partial_rhs_list,
-                    "jwt_exp_list": jwt_exp_list
-                })
-                .to_string(),
-            )
+            match split_public_inputs(pub_inputs) {
+                Ok((shared_inputs, partial_rhs_list, jwt_exp_list)) => to_c_string(
+                    serde_json::json!({
+                        "proofs": proofs_solidity,
+                        "shared_inputs": shared_inputs,
+                        "partial_rhs_list": partial_rhs_list,
+                        "jwt_exp_list": jwt_exp_list
+                    })
+                    .to_string(),
+                ),
+                Err(e) => error_response(&e),
+            }
         }
         Err(e) => error_response(&e.to_string()),
     }
