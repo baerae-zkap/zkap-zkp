@@ -92,12 +92,16 @@ export interface JsProofRequest {
   /** Allowed audience values as hex/decimal field-element strings. */
   audList: Array<string>
 }
-/** Output of `prove`: serialized proof bytes and hex-encoded public inputs per proof. */
+/** Output of `prove`: Solidity-compatible proof strings and split public inputs per JWT. */
 export interface JsProofOutput {
-  /** `ark_serialize` bytes for each generated Groth16 proof (Node.js Buffer per proof). */
-  proofs: Array<Buffer>
-  /** Public inputs per proof, each field element as a 0x-prefixed hex string. */
-  publicInputs: Array<Array<string>>
+  /** Solidity-compatible proof per proof: [ax, ay, bx_c1, bx_c0, by_c1, by_c0, cx, cy] */
+  proofs: Array<Array<string>>
+  /** Public inputs shared across all JWTs (indices 0,1,2,3,6,7) as decimal strings */
+  sharedInputs: Array<string>
+  /** partial_rhs per JWT (index 5) as decimal string */
+  partialRhsList: Array<string>
+  /** jwt_exp per JWT (index 4) as decimal string */
+  jwtExpList: Array<string>
 }
 /**
  * Perform a Groth16 trusted setup for the ZKAP circuit.

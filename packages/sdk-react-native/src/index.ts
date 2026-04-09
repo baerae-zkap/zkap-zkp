@@ -42,8 +42,14 @@ export interface ProveRequest {
 }
 
 export interface ProveResult {
-  proofs: string[];
-  public_inputs: string[][];
+  /** Solidity-compatible proof per proof: [ax, ay, bx_c1, bx_c0, by_c1, by_c0, cx, cy] */
+  proofs: string[][];
+  /** Public inputs shared across all JWTs (indices 0,1,2,3,6,7) as decimal strings */
+  shared_inputs: string[];
+  /** partial_rhs per JWT (index 5) as decimal string */
+  partial_rhs_list: string[];
+  /** jwt_exp per JWT (index 4) as decimal string */
+  jwt_exp_list: string[];
 }
 
 // ──────────────────────────────────────────────────────────────────
