@@ -35,8 +35,8 @@
     "access": "public"
   },
   "scripts": {
-    "build": "wasm-pack build --target bundler --out-dir pkg --out-name zkap_zkp_wasm && node scripts/patch-pkg-name.mjs",
-    "build:web": "wasm-pack build --target web --out-dir pkg-web --out-name zkap_zkp_wasm && node scripts/patch-pkg-name.mjs pkg-web",
+    "build": "wasm-pack build --target web --out-dir pkg --out-name zkap_zkp_wasm && node scripts/patch-pkg-name.mjs",
+    "build:bundler": "wasm-pack build --target bundler --out-dir pkg-bundler --out-name zkap_zkp_wasm && node scripts/patch-pkg-name.mjs pkg-bundler",
     "build:nodejs": "wasm-pack build --target nodejs --out-dir pkg-node --out-name zkap_zkp_wasm && node scripts/patch-pkg-name.mjs pkg-node",
     "prepack": "npm run build"
   },

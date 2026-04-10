@@ -133,15 +133,15 @@ jobs:
         include:
           - target: aarch64-apple-ios
             name: ios-arm64
-            binary: libzkap_zkp_rn.a
+            binary: libzkap_uniffi_bindings.a
             artifact: rn-ios-arm64
           - target: aarch64-apple-ios-sim
             name: ios-sim-arm64
-            binary: libzkap_zkp_rn.a
+            binary: libzkap_uniffi_bindings.a
             artifact: rn-ios-sim-arm64
           - target: x86_64-apple-ios
             name: ios-sim-x86_64
-            binary: libzkap_zkp_rn.a
+            binary: libzkap_uniffi_bindings.a
             artifact: rn-ios-sim-x86_64
     runs-on: macos-latest
     name: Build ${{ matrix.name }}
@@ -153,7 +153,7 @@ jobs:
           toolchain: stable
           targets: ${{ matrix.target }}
       - name: Build
-        run: cargo build --release --target ${{ matrix.target }} -p zkap-zkp-rn
+        run: cargo build --release --target ${{ matrix.target }} -p zkap-uniffi-bindings
       - name: Upload artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
@@ -207,12 +207,12 @@ jobs:
               ;;
           esac
       - name: Build
-        run: cargo build --release --target ${{ matrix.target }} -p zkap-zkp-rn
+        run: cargo build --release --target ${{ matrix.target }} -p zkap-uniffi-bindings
       - name: Upload artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: ${{ matrix.artifact }}
-          path: target/${{ matrix.target }}/release/libzkap_zkp_rn.so
+          path: target/${{ matrix.target }}/release/libzkap_uniffi_bindings.so
           if-no-files-found: error
 
   assemble-ios-xcframework:
@@ -238,15 +238,15 @@ jobs:
       - name: Create fat simulator library
         run: |
           lipo -create \
-            rn-ios-sim-arm64/libzkap_zkp_rn.a \
-            rn-ios-sim-x86_64/libzkap_zkp_rn.a \
-            -output libzkap_zkp_rn_sim.a
+            rn-ios-sim-arm64/libzkap_uniffi_bindings.a \
+            rn-ios-sim-x86_64/libzkap_uniffi_bindings.a \
+            -output libzkap_uniffi_bindings_sim.a
       - name: Create XCFramework
         run: |
           xcodebuild -create-xcframework \
-            -library rn-ios-arm64/libzkap_zkp_rn.a \
+            -library rn-ios-arm64/libzkap_uniffi_bindings.a \
             -headers packages/sdk-react-native/ios/include \
-            -library libzkap_zkp_rn_sim.a \
+            -library libzkap_uniffi_bindings_sim.a \
             -headers packages/sdk-react-native/ios/include \
             -output ZkapZkp.xcframework
       - name: Upload XCFramework artifact
@@ -371,9 +371,9 @@ jobs:
       - name: Verify React Native package binaries
         run: |
           test -d packages/sdk-react-native/ios/ZkapZkp.xcframework || (echo "Missing iOS XCFramework" && exit 1)
-          test -f packages/sdk-react-native/android/libs/arm64-v8a/libzkap_zkp_rn.so || (echo "Missing Android arm64 .so" && exit 1)
-          test -f packages/sdk-react-native/android/libs/armeabi-v7a/libzkap_zkp_rn.so || (echo "Missing Android armv7 .so" && exit 1)
-          test -f packages/sdk-react-native/android/libs/x86_64/libzkap_zkp_rn.so || (echo "Missing Android x86_64 .so" && exit 1)
+          test -f packages/sdk-react-native/android/libs/arm64-v8a/libzkap_uniffi_bindings.so || (echo "Missing Android arm64 .so" && exit 1)
+          test -f packages/sdk-react-native/android/libs/armeabi-v7a/libzkap_uniffi_bindings.so || (echo "Missing Android armv7 .so" && exit 1)
+          test -f packages/sdk-react-native/android/libs/x86_64/libzkap_uniffi_bindings.so || (echo "Missing Android x86_64 .so" && exit 1)
           echo "All React Native binaries verified"
 
       - name: Publish dry-run for all packages

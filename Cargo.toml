@@ -3,7 +3,7 @@ resolver = "2"
 members = [
     "packages/sdk-node",
     "packages/sdk-wasm",
-    "packages/sdk-react-native/rust",
+    "crates/uniffi-bindings",
 ]
 
 [workspace.dependencies]
