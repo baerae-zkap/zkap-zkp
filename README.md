@@ -71,9 +71,7 @@ const anchor = await generateAnchor(['0x1', '0x2']);
 | `generateAnchor` | ✅ | ✅ | Threshold anchor |
 | `generateAudHash` | ✅ | ✅ | Audience hash |
 | `generateLeafHash` | ✅ | ✅ | Leaf hash |
-| `groth16Setup` | ✅ | ❌ | Server only |
 | `prove` | ✅ | ❌ | Server only (requires ~400MB proving key) |
-| `verify` | ✅ | ❌ | Server only (VK is on-chain) |
 
 ## Examples
 
@@ -93,7 +91,7 @@ cargo test
 cargo clippy --workspace -- -D warnings
 
 # Build WASM
-cd packages/sdk-wasm && wasm-pack build --target bundler
+cd packages/sdk-wasm && wasm-pack build --target web
 
 # Build TypeScript facade
 cd packages/sdk && npm run build

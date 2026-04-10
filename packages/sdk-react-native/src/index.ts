@@ -132,25 +132,23 @@ export async function prove(
 
 /**
  * NOT supported on React Native.
- * groth16Setup() requires a server environment with large CRS data.
- * Use @baerae/zkap-zkp (Node.js) for setup.
+ * groth16Setup() has been removed from all SDK packages as of v0.1.2.
  */
 export function groth16Setup(): never {
   throw new Error(
     '[zkap/sdk-react-native] groth16Setup() is not supported on mobile. ' +
-    'Use @baerae/zkap-zkp (Node.js) for server-side trusted setup.'
+    'Note: this function has been removed from all SDK packages as of v0.1.2.'
   );
 }
 
 /**
  * NOT supported on React Native.
- * verify() uses a verifying key hardcoded in a smart contract.
- * Use @baerae/zkap-zkp (Node.js) for server-side verification.
+ * verify() has been removed from all SDK packages as of v0.1.2.
  */
 export function verify(): never {
   throw new Error(
     '[zkap/sdk-react-native] verify() is not supported on mobile. ' +
-    'Use @baerae/zkap-zkp (Node.js) for server-side verification.'
+    'Note: this function has been removed from all SDK packages as of v0.1.2.'
   );
 }
 

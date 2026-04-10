@@ -6,6 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-04-10
+
+### Breaking Changes
+
+- **`JsProofRequest` field split** (`sdk-node`, `sdk-wasm`, `sdk-react-native`): `anchor: string[]` removed; replaced by `anchorEvals: string[]` (polynomial evaluations) and `hanchor: string` (anchor chain hash)
+- **`JsProofRequest` field rename** (`sdk-node`, `sdk-wasm`, `sdk-react-native`): `audList: string[]` renamed to `audHashList: string[]`; values must now be pre-hashed via `generateAudHash()`
+
+### Removed
+
+- `groth16Setup()` removed from `sdk-node` public API
+- `verify()` removed from `sdk-node` public API
+- `JsSetupOutput` type removed from `sdk-node`
+
+### Added
+
+- **React Native UniFFI support**: `sdk-react-native` rewritten using [UniFFI](https://mozilla.github.io/uniffi-rs/) with full Android (Kotlin) and iOS (Swift + XCFramework) bindings
+
+### Changed
+
+- **`sdk-wasm` default build target**: changed from `bundler` to `web`; use `npm run build:bundler` for the previous bundler target
+- **`generateHash`, `generateLeafHash`, `generateAudHash`**: string encoding now handled inside `zkap-service`; external behavior is unchanged
+
 ## [0.1.1] - 2026-04-09
 
 ### Title: Solidity-Ready Proof Output
