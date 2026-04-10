@@ -12,7 +12,7 @@
     "ios/ZkapSdkModule.podspec",
     "ios/ZkapSdkModule.swift",
     "ios/uniffi/",
-    "ios/libzkap_uniffi.xcframework/",
+    "ios/ZkapZkp.xcframework/",
     "android/src/",
     "android/build.gradle",
     "android/libs/",
