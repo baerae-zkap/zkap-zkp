@@ -3,11 +3,6 @@
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
-fn f_to_hex(f: ark_bn254::Fr) -> String {
-    use ark_ff::{BigInteger, PrimeField};
-    format!("0x{}", hex::encode(f.into_bigint().to_bytes_be()))
-}
-
 fn js_err(e: impl std::fmt::Display) -> JsValue {
     JsValue::from_str(&e.to_string())
 }
@@ -88,8 +83,7 @@ fn to_native_config(c: JsCircuitConfig) -> zkap_service::CircuitConfig {
 /// Returns the result as a 0x-prefixed hex string.
 #[wasm_bindgen(js_name = generateHash)]
 pub fn generate_hash(messages: Vec<String>) -> Result<String, JsValue> {
-    let f = zkap_service::generate_hash(messages).map_err(js_err)?;
-    Ok(f_to_hex(f))
+    zkap_service::generate_hash(messages).map_err(js_err)
 }
 
 // ---------------------------------------------------------------------------
@@ -121,7 +115,7 @@ pub fn generate_anchor(config: JsValue, secrets: JsValue) -> Result<JsValue, JsV
 
     let anchor = zkap_service::generate_anchor(&params, native_secrets).map_err(js_err)?;
     let result = AnchorResult {
-        evaluations: anchor.0.into_iter().map(f_to_hex).collect(),
+        evaluations: anchor.anchor,
     };
     serde_wasm_bindgen::to_value(&result).map_err(js_err)
 }
@@ -142,12 +136,10 @@ pub fn generate_aud_hash(config: JsValue, aud_list: Vec<String>) -> Result<JsVal
         serde_wasm_bindgen::from_value(config).map_err(js_err)?;
     let params = to_native_config(config);
 
-    let (aud_fields, h_aud_list) =
-        zkap_service::generate_aud_hash(&params, aud_list).map_err(js_err)?;
-
+    let result_core = zkap_service::generate_aud_hash(&params, aud_list).map_err(js_err)?;
     let result = AudHashResult {
-        aud_hashes: aud_fields.into_iter().map(f_to_hex).collect(),
-        h_aud_list: f_to_hex(h_aud_list),
+        aud_hashes: result_core.individual,
+        h_aud_list: result_core.combined,
     };
     serde_wasm_bindgen::to_value(&result).map_err(js_err)
 }
@@ -171,8 +163,7 @@ pub fn generate_leaf_hash(
         serde_wasm_bindgen::from_value(config).map_err(js_err)?;
     let params = to_native_config(config);
 
-    let f = zkap_service::generate_leaf_hash(&params, &iss, &pk_b64).map_err(js_err)?;
-    Ok(f_to_hex(f))
+    zkap_service::generate_leaf_hash(&params, &iss, &pk_b64).map_err(js_err)
 }
 
 // ---------------------------------------------------------------------------

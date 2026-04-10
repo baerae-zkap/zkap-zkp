@@ -35,10 +35,14 @@ export interface ProveRequest {
   merkle_paths: string[][];
   leaf_indices: number[];
   root: string;
-  anchor: string[];
+  /** Anchor polynomial evaluations (N - K + 1 entries). */
+  anchor_evals: string[];
+  /** Anchor chain hash (hanchor). */
+  hanchor: string;
   h_sign_user_op: string;
   random: string;
-  aud_list: string[];
+  /** Pre-computed audience hashes (from generateAudHash). */
+  aud_hash_list: string[];
 }
 
 export interface ProveResult {
