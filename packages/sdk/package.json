@@ -1,6 +1,6 @@
 {
   "name": "@baerae/zkap-zkp",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Node.js SDK for zkap-zkp. For browser (WebAssembly), use @baerae/zkap-zkp-wasm.",
   "main": "./dist/node.cjs",
   "module": "./dist/node.mjs",
@@ -44,7 +44,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@baerae/zkap-zkp-node": "0.1.1"
+    "@baerae/zkap-zkp-node": "0.1.2"
   },
   "scripts": {
     "build": "tsup",
