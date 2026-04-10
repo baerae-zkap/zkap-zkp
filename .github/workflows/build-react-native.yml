@@ -21,17 +21,17 @@ jobs:
         include:
           - target: aarch64-apple-ios
             name: ios-arm64
-            binary: libzkap_zkp_rn.a
+            binary: libzkap_uniffi_bindings.a
             artifact: rn-ios-arm64
 
           - target: aarch64-apple-ios-sim
             name: ios-sim-arm64
-            binary: libzkap_zkp_rn.a
+            binary: libzkap_uniffi_bindings.a
             artifact: rn-ios-sim-arm64
 
           - target: x86_64-apple-ios
             name: ios-sim-x86_64
-            binary: libzkap_zkp_rn.a
+            binary: libzkap_uniffi_bindings.a
             artifact: rn-ios-sim-x86_64
 
     runs-on: macos-latest
@@ -50,7 +50,7 @@ jobs:
         run: |
           cargo build --release \
             --target ${{ matrix.target }} \
-            -p zkap-zkp-rn
+            -p zkap-uniffi-bindings
 
       - name: Upload artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
@@ -121,13 +121,13 @@ jobs:
         run: |
           cargo build --release \
             --target ${{ matrix.target }} \
-            -p zkap-zkp-rn
+            -p zkap-uniffi-bindings
 
       - name: Upload artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: ${{ matrix.artifact }}
-          path: target/${{ matrix.target }}/release/libzkap_zkp_rn.so
+          path: target/${{ matrix.target }}/release/libzkap_uniffi_bindings.so
           if-no-files-found: error
 
   # ──────────────────────────────────────────────
@@ -161,16 +161,16 @@ jobs:
       - name: Create fat simulator library
         run: |
           lipo -create \
-            rn-ios-sim-arm64/libzkap_zkp_rn.a \
-            rn-ios-sim-x86_64/libzkap_zkp_rn.a \
-            -output libzkap_zkp_rn_sim.a
+            rn-ios-sim-arm64/libzkap_uniffi_bindings.a \
+            rn-ios-sim-x86_64/libzkap_uniffi_bindings.a \
+            -output libzkap_uniffi_bindings_sim.a
 
       - name: Create XCFramework
         run: |
           xcodebuild -create-xcframework \
-            -library rn-ios-arm64/libzkap_zkp_rn.a \
+            -library rn-ios-arm64/libzkap_uniffi_bindings.a \
             -headers packages/sdk-react-native/ios/include \
-            -library libzkap_zkp_rn_sim.a \
+            -library libzkap_uniffi_bindings_sim.a \
             -headers packages/sdk-react-native/ios/include \
             -output ZkapZkp.xcframework
 
