@@ -12,22 +12,22 @@ INCLUDE_DIR="$REPO_ROOT/packages/sdk-react-native/ios/include"
 OUT_DIR="$REPO_ROOT/packages/sdk-react-native/ios/ZkapZkp.xcframework"
 
 echo "==> Building iOS targets..."
-cargo build --release --target aarch64-apple-ios      -p zkap-zkp-rn
-cargo build --release --target aarch64-apple-ios-sim  -p zkap-zkp-rn
-cargo build --release --target x86_64-apple-ios       -p zkap-zkp-rn
+cargo build --release --target aarch64-apple-ios      -p zkap-uniffi-bindings
+cargo build --release --target aarch64-apple-ios-sim  -p zkap-uniffi-bindings
+cargo build --release --target x86_64-apple-ios       -p zkap-uniffi-bindings
 
 echo "==> Creating fat simulator library (arm64 + x86_64)..."
 lipo -create \
-  "$REPO_ROOT/target/aarch64-apple-ios-sim/release/libzkap_zkp_rn.a" \
-  "$REPO_ROOT/target/x86_64-apple-ios/release/libzkap_zkp_rn.a" \
-  -output "$REPO_ROOT/target/libzkap_zkp_rn_sim.a"
+  "$REPO_ROOT/target/aarch64-apple-ios-sim/release/libzkap_uniffi_bindings.a" \
+  "$REPO_ROOT/target/x86_64-apple-ios/release/libzkap_uniffi_bindings.a" \
+  -output "$REPO_ROOT/target/libzkap_uniffi_bindings_sim.a"
 
 echo "==> Creating XCFramework..."
 rm -rf "$OUT_DIR"
 xcodebuild -create-xcframework \
-  -library "$REPO_ROOT/target/aarch64-apple-ios/release/libzkap_zkp_rn.a" \
+  -library "$REPO_ROOT/target/aarch64-apple-ios/release/libzkap_uniffi_bindings.a" \
   -headers "$INCLUDE_DIR" \
-  -library "$REPO_ROOT/target/libzkap_zkp_rn_sim.a" \
+  -library "$REPO_ROOT/target/libzkap_uniffi_bindings_sim.a" \
   -headers "$INCLUDE_DIR" \
   -output "$OUT_DIR"
 
