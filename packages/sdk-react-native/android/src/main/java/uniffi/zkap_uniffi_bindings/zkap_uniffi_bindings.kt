@@ -1323,11 +1323,11 @@ public object FfiConverterTypeZkapSecret: FfiConverterRustBuffer<ZkapSecret> {
 sealed class ZkapException: kotlin.Exception() {
     
     class ApplicationException(
-        
-        val `message`: kotlin.String
+
+        val errorMessage: kotlin.String
         ) : ZkapException() {
         override val message
-            get() = "message=${ `message` }"
+            get() = "message=${ errorMessage }"
     }
     
 
@@ -1361,7 +1361,7 @@ public object FfiConverterTypeZkapError : FfiConverterRustBuffer<ZkapException> 
             is ZkapException.ApplicationException -> (
                 // Add the size for the Int that specifies the variant plus the size needed for all fields
                 4UL
-                + FfiConverterString.allocationSize(value.`message`)
+                + FfiConverterString.allocationSize(value.errorMessage)
             )
         }
     }
@@ -1370,7 +1370,7 @@ public object FfiConverterTypeZkapError : FfiConverterRustBuffer<ZkapException> 
         when(value) {
             is ZkapException.ApplicationException -> {
                 buf.putInt(1)
-                FfiConverterString.write(value.`message`, buf)
+                FfiConverterString.write(value.errorMessage, buf)
                 Unit
             }
         }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }

@@ -3,6 +3,9 @@ uniffi::setup_scaffolding!();
 use std::path::PathBuf;
 use zkap_service::constants::RawCircuitConfig;
 
+#[global_allocator]
+static ALLOC: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 // ---------------------------------------------------------------------------
 // Error type
 // ---------------------------------------------------------------------------

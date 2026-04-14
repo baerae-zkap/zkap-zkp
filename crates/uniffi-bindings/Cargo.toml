@@ -7,9 +7,10 @@ edition = "2021"
 crate-type = ["staticlib", "cdylib"]
 
 [dependencies]
-zkap-service = { workspace = true, features = ["proof"] }
+zkap-service = { workspace = true, features = ["proof", "use-optimized"] }
 uniffi = { version = "0.31", features = ["cli"] }
 thiserror = "1"
+mimalloc = { workspace = true }
 
 [[bin]]
 name = "uniffi-bindgen"
