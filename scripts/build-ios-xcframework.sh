@@ -17,17 +17,18 @@ cargo build --release --target aarch64-apple-ios-sim  -p zkap-uniffi-bindings
 cargo build --release --target x86_64-apple-ios       -p zkap-uniffi-bindings
 
 echo "==> Creating fat simulator library (arm64 + x86_64)..."
+mkdir -p "$REPO_ROOT/target/ios-sim"
 lipo -create \
   "$REPO_ROOT/target/aarch64-apple-ios-sim/release/libzkap_uniffi_bindings.a" \
   "$REPO_ROOT/target/x86_64-apple-ios/release/libzkap_uniffi_bindings.a" \
-  -output "$REPO_ROOT/target/libzkap_uniffi_bindings_sim.a"
+  -output "$REPO_ROOT/target/ios-sim/libzkap_uniffi_bindings.a"
 
 echo "==> Creating XCFramework..."
 rm -rf "$OUT_DIR"
 xcodebuild -create-xcframework \
   -library "$REPO_ROOT/target/aarch64-apple-ios/release/libzkap_uniffi_bindings.a" \
   -headers "$INCLUDE_DIR" \
-  -library "$REPO_ROOT/target/libzkap_uniffi_bindings_sim.a" \
+  -library "$REPO_ROOT/target/ios-sim/libzkap_uniffi_bindings.a" \
   -headers "$INCLUDE_DIR" \
   -output "$OUT_DIR"
 

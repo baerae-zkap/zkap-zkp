@@ -237,16 +237,17 @@ jobs:
           path: rn-ios-sim-x86_64
       - name: Create fat simulator library
         run: |
+          mkdir -p ios-sim
           lipo -create \
             rn-ios-sim-arm64/libzkap_uniffi_bindings.a \
             rn-ios-sim-x86_64/libzkap_uniffi_bindings.a \
-            -output libzkap_uniffi_bindings_sim.a
+            -output ios-sim/libzkap_uniffi_bindings.a
       - name: Create XCFramework
         run: |
           xcodebuild -create-xcframework \
             -library rn-ios-arm64/libzkap_uniffi_bindings.a \
             -headers packages/sdk-react-native/ios/include \
-            -library libzkap_uniffi_bindings_sim.a \
+            -library ios-sim/libzkap_uniffi_bindings.a \
             -headers packages/sdk-react-native/ios/include \
             -output ZkapZkp.xcframework
       - name: Upload XCFramework artifact
