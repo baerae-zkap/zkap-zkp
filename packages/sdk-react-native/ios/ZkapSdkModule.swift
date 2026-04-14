@@ -119,6 +119,7 @@ public class ZkapSdkModule: Module {
             let outData = try JSONSerialization.data(withJSONObject: output)
             return String(data: outData, encoding: .utf8)!
         }
+
     }
 }
 
@@ -143,3 +144,4 @@ private func parseConfig(_ d: [String: Any]) -> ZkapCircuitConfig {
         forbiddenString: d["forbidden_string"] as! String
     )
 }
+

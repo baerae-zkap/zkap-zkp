@@ -8,13 +8,17 @@ members = [
 
 [workspace.dependencies]
 zkap-service = { git = "https://github.com/snp-labs/zkap-circuit.git", branch = "develop" }
+mimalloc = { version = "0.1.48", default-features = false }
 napi = { version = "2.16", features = ["napi8"] }
 napi-derive = { version = "2.16" }
+
+[workspace.metadata.ark]
+# parallel feature는 zkap-circuit workspace.dependencies에서 default-features=false로 비활성화됨
 
 [profile.release]
 lto = true
 strip = "symbols"
-panic = "abort"
+# panic = "abort"  # temporarily disabled to get error messages via UniFFI
 
 # Accepted cargo audit advisories (transitive deps from snp-labs/zkap-circuit, no fix available)
 # Run: cargo audit --ignore RUSTSEC-2023-0071 --ignore RUSTSEC-2025-0055
