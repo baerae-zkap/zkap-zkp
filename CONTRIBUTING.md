@@ -95,7 +95,7 @@ Trusted publishing notes:
 
 - After the first manual/bootstrap publish of each package, connect the package to the GitHub Actions trusted publisher on npm.
 - Once all 8 packages are linked, release publishing runs token-free through OIDC.
-- See [docs/release-runbook.md](./docs/release-runbook.md) for the first-publish sequence and npm setup checklist.
+- See the internal release runbook for the first-publish sequence and npm setup checklist.
 
 ## Commit Messages
 
