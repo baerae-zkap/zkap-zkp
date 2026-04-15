@@ -114,7 +114,7 @@ export async function generateLeafHash(
 
 /**
  * Generate Groth16 proofs (on-device proving).
- * Requires PK to be downloaded and cached via initProveArtifacts().
+ * Requires a proving key file on disk.
  */
 export async function prove(
   config: CircuitConfig,
@@ -152,4 +152,3 @@ export function verify(): never {
   );
 }
 
-export { initProveArtifacts } from './artifact-manager';

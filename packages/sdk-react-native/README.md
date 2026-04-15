@@ -11,8 +11,6 @@ npm install @baerae/zkap-zkp-react-native
 Requires Expo New Architecture and the following peer dependencies:
 
 - `expo`
-- `expo-crypto`
-- `expo-file-system`
 - `expo-modules-core`
 - `react-native`
 
