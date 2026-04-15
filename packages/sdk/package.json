@@ -10,11 +10,6 @@
       "types": "./dist/node.d.ts",
       "require": "./dist/node.cjs",
       "import": "./dist/node.mjs"
-    },
-    "./artifact-manager": {
-      "types": "./dist/artifact-manager.d.ts",
-      "require": "./dist/artifact-manager.cjs",
-      "import": "./dist/artifact-manager.mjs"
     }
   },
   "files": [
