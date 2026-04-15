@@ -46,9 +46,6 @@ cargo test
 # Node.js tests (sdk-node)
 cd packages/sdk-node && npm test
 
-# TypeScript facade tests (sdk)
-cd packages/sdk && npm test
-
 # WASM tests
 cd packages/sdk-wasm && wasm-pack test --node
 ```
