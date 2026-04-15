@@ -175,12 +175,3 @@ Calling either function throws an error with a descriptive message.
 | `prove()` fails with file not found | Ensure the proving key file exists at the path passed as `pk_path` |
 | Slow proof generation | Expected. Groth16 proving is CPU-intensive on mobile. |
 
-## Example App
-
-A full smoke test app is available at [`examples/expo-example/`](../examples/expo-example/). It exercises all five API functions with mock inputs.
-
-```bash
-cd examples/expo-example
-npm install
-npx expo run:ios    # or npx expo run:android
-```

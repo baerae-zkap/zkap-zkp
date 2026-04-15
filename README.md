@@ -122,7 +122,6 @@ The proving key (~400 MB) is **not bundled in npm**. Users must download it sepa
 
 - [`examples/node/`](./examples/node/) -- hash and proof usage with `@baerae/zkap-zkp`
 - [`examples/browser/`](./examples/browser/) -- WASM hash usage with Vite
-- [`examples/expo-example/`](./examples/expo-example/) -- React Native smoke test (all 5 API functions)
 
 ## Documentation
 
@@ -149,7 +148,6 @@ cd packages/sdk && npm run build
 
 # Run Node.js tests
 cd packages/sdk-node && npm test
-cd packages/sdk && npm test
 ```
 
 ## Contributing
