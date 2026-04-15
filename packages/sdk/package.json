@@ -44,26 +44,10 @@
   "scripts": {
     "build": "tsup",
     "prepack": "npm run build",
-    "test": "ava"
+    "test": "echo 'no tests — sdk is a pure re-export of @baerae/zkap-zkp-node'"
   },
   "devDependencies": {
-    "@swc-node/register": "^1.11.1",
-    "@swc/core": "^1.15.24",
-    "@types/node": "^20.0.0",
-    "ava": "^6.4.1",
     "tsup": "^8.0.0",
     "typescript": "^5.4.5"
-  },
-  "ava": {
-    "extensions": [
-      "ts"
-    ],
-    "require": [
-      "@swc-node/register"
-    ],
-    "files": [
-      "__test__/**/*.spec.ts"
-    ],
-    "timeout": "10m"
   }
 }
