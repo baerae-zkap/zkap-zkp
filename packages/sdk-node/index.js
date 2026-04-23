@@ -310,12 +310,10 @@ if (!nativeBinding) {
   throw new Error(`Failed to load native binding`)
 }
 
-const { generateHash, generateAnchor, generateAudHash, generateLeafHash, groth16Setup, prove, verify } = nativeBinding
+const { generateHash, generateAnchor, generateAudHash, generateLeafHash, prove } = nativeBinding
 
 module.exports.generateHash = generateHash
 module.exports.generateAnchor = generateAnchor
 module.exports.generateAudHash = generateAudHash
 module.exports.generateLeafHash = generateLeafHash
-module.exports.groth16Setup = groth16Setup
 module.exports.prove = prove
-module.exports.verify = verify

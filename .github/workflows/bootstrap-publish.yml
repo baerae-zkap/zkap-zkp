@@ -133,15 +133,15 @@ jobs:
         include:
           - target: aarch64-apple-ios
             name: ios-arm64
-            binary: libzkap_zkp_rn.a
+            binary: libzkap_uniffi_bindings.a
             artifact: rn-ios-arm64
           - target: aarch64-apple-ios-sim
             name: ios-sim-arm64
-            binary: libzkap_zkp_rn.a
+            binary: libzkap_uniffi_bindings.a
             artifact: rn-ios-sim-arm64
           - target: x86_64-apple-ios
             name: ios-sim-x86_64
-            binary: libzkap_zkp_rn.a
+            binary: libzkap_uniffi_bindings.a
             artifact: rn-ios-sim-x86_64
     runs-on: macos-latest
     name: Build ${{ matrix.name }}
@@ -153,7 +153,7 @@ jobs:
           toolchain: stable
           targets: ${{ matrix.target }}
       - name: Build
-        run: cargo build --release --target ${{ matrix.target }} -p zkap-zkp-rn
+        run: cargo build --release --target ${{ matrix.target }} -p zkap-uniffi-bindings
       - name: Upload artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
@@ -195,24 +195,34 @@ jobs:
         run: |
           NDK_HOME=$ANDROID_SDK_ROOT/ndk/$(ls $ANDROID_SDK_ROOT/ndk | sort -V | tail -1)
           echo "ANDROID_NDK_HOME=$NDK_HOME" >> $GITHUB_ENV
+          TOOLCHAIN=$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin
+
+          # Set linker, C compiler, and archiver for each ABI
+          # CC_* and AR_* are required by cc-rs to compile C dependencies (e.g. mimalloc)
           case "${{ matrix.target }}" in
             aarch64-linux-android)
-              echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android21-clang" >> $GITHUB_ENV
+              echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$TOOLCHAIN/aarch64-linux-android21-clang" >> $GITHUB_ENV
+              echo "CC_aarch64_linux_android=$TOOLCHAIN/aarch64-linux-android21-clang" >> $GITHUB_ENV
+              echo "AR_aarch64_linux_android=$TOOLCHAIN/llvm-ar" >> $GITHUB_ENV
               ;;
             armv7-linux-androideabi)
-              echo "CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_LINKER=$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi21-clang" >> $GITHUB_ENV
+              echo "CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_LINKER=$TOOLCHAIN/armv7a-linux-androideabi21-clang" >> $GITHUB_ENV
+              echo "CC_armv7_linux_androideabi=$TOOLCHAIN/armv7a-linux-androideabi21-clang" >> $GITHUB_ENV
+              echo "AR_armv7_linux_androideabi=$TOOLCHAIN/llvm-ar" >> $GITHUB_ENV
               ;;
             x86_64-linux-android)
-              echo "CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER=$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android21-clang" >> $GITHUB_ENV
+              echo "CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER=$TOOLCHAIN/x86_64-linux-android21-clang" >> $GITHUB_ENV
+              echo "CC_x86_64_linux_android=$TOOLCHAIN/x86_64-linux-android21-clang" >> $GITHUB_ENV
+              echo "AR_x86_64_linux_android=$TOOLCHAIN/llvm-ar" >> $GITHUB_ENV
               ;;
           esac
       - name: Build
-        run: cargo build --release --target ${{ matrix.target }} -p zkap-zkp-rn
+        run: cargo build --release --target ${{ matrix.target }} -p zkap-uniffi-bindings
       - name: Upload artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: ${{ matrix.artifact }}
-          path: target/${{ matrix.target }}/release/libzkap_zkp_rn.so
+          path: target/${{ matrix.target }}/release/libzkap_uniffi_bindings.so
           if-no-files-found: error
 
   assemble-ios-xcframework:
@@ -237,16 +247,17 @@ jobs:
           path: rn-ios-sim-x86_64
       - name: Create fat simulator library
         run: |
+          mkdir -p ios-sim
           lipo -create \
-            rn-ios-sim-arm64/libzkap_zkp_rn.a \
-            rn-ios-sim-x86_64/libzkap_zkp_rn.a \
-            -output libzkap_zkp_rn_sim.a
+            rn-ios-sim-arm64/libzkap_uniffi_bindings.a \
+            rn-ios-sim-x86_64/libzkap_uniffi_bindings.a \
+            -output ios-sim/libzkap_uniffi_bindings.a
       - name: Create XCFramework
         run: |
           xcodebuild -create-xcframework \
-            -library rn-ios-arm64/libzkap_zkp_rn.a \
+            -library rn-ios-arm64/libzkap_uniffi_bindings.a \
             -headers packages/sdk-react-native/ios/include \
-            -library libzkap_zkp_rn_sim.a \
+            -library ios-sim/libzkap_uniffi_bindings.a \
             -headers packages/sdk-react-native/ios/include \
             -output ZkapZkp.xcframework
       - name: Upload XCFramework artifact
@@ -371,9 +382,9 @@ jobs:
       - name: Verify React Native package binaries
         run: |
           test -d packages/sdk-react-native/ios/ZkapZkp.xcframework || (echo "Missing iOS XCFramework" && exit 1)
-          test -f packages/sdk-react-native/android/libs/arm64-v8a/libzkap_zkp_rn.so || (echo "Missing Android arm64 .so" && exit 1)
-          test -f packages/sdk-react-native/android/libs/armeabi-v7a/libzkap_zkp_rn.so || (echo "Missing Android armv7 .so" && exit 1)
-          test -f packages/sdk-react-native/android/libs/x86_64/libzkap_zkp_rn.so || (echo "Missing Android x86_64 .so" && exit 1)
+          test -f packages/sdk-react-native/android/libs/arm64-v8a/libzkap_uniffi_bindings.so || (echo "Missing Android arm64 .so" && exit 1)
+          test -f packages/sdk-react-native/android/libs/armeabi-v7a/libzkap_uniffi_bindings.so || (echo "Missing Android armv7 .so" && exit 1)
+          test -f packages/sdk-react-native/android/libs/x86_64/libzkap_uniffi_bindings.so || (echo "Missing Android x86_64 .so" && exit 1)
           echo "All React Native binaries verified"
 
       - name: Publish dry-run for all packages

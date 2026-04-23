@@ -4,7 +4,6 @@ export type {
   JsCircuitConfig,
   JsAnchorResult,
   JsAudHashResult,
-  JsSetupOutput,
   JsProofRequest,
   JsProofOutput,
 } from "@baerae/zkap-zkp-node";
@@ -14,7 +13,5 @@ export {
   generateAnchor,
   generateAudHash,
   generateLeafHash,
-  groth16Setup,
   prove,
-  verify,
 } from "@baerae/zkap-zkp-node";

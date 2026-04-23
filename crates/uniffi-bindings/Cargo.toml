@@ -1,0 +1,17 @@
+[package]
+name = "zkap-uniffi-bindings"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["staticlib", "cdylib"]
+
+[dependencies]
+zkap-service = { workspace = true, features = ["proof", "use-optimized"] }
+uniffi = { version = "0.31", features = ["cli"] }
+thiserror = "1"
+mimalloc = { workspace = true }
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "src/bin/uniffi-bindgen.rs"

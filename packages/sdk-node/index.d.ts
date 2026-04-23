@@ -62,13 +62,6 @@ export declare function generateAudHash(config: JsCircuitConfig, audList: Array<
  * Returns the leaf field element as a 0x-prefixed hex string.
  */
 export declare function generateLeafHash(config: JsCircuitConfig, iss: string, pkB64: string): string
-/** Output of `groth16_setup`: serialized proving key and verifying key bytes. */
-export interface JsSetupOutput {
-  /** `ark_serialize` bytes of the Groth16 proving key (Node.js Buffer). */
-  pkBytes: Buffer
-  /** `ark_serialize` bytes of the Groth16 verifying key (Node.js Buffer). */
-  vkBytes: Buffer
-}
 /** Raw proof request passed from JavaScript to `prove`. */
 export interface JsProofRequest {
   /** Path to the proving key file on disk. */
@@ -83,42 +76,31 @@ export interface JsProofRequest {
   leafIndices: Array<number>
   /** Merkle root as a hex/decimal field-element string. */
   root: string
-  /** Anchor polynomial evaluations plus `hanchor` as the last element. */
-  anchor: Array<string>
+  /** Anchor polynomial evaluations (without hanchor). */
+  anchorEvals: Array<string>
+  /** Combined anchor hash. */
+  hanchor: string
   /** Signed UserOperation hash. */
   hSignUserOp: string
   /** Random blinding value. */
   random: string
-  /** Allowed audience values as hex/decimal field-element strings. */
-  audList: Array<string>
+  /** Allowed audience hash values as hex/decimal field-element strings. */
+  audHashList: Array<string>
 }
-/** Output of `prove`: serialized proof bytes and hex-encoded public inputs per proof. */
+/** Output of `prove`: Solidity-compatible proof strings and split public inputs per JWT. */
 export interface JsProofOutput {
-  /** `ark_serialize` bytes for each generated Groth16 proof (Node.js Buffer per proof). */
-  proofs: Array<Buffer>
-  /** Public inputs per proof, each field element as a 0x-prefixed hex string. */
-  publicInputs: Array<Array<string>>
+  /** Solidity-compatible proof strings per proof: [ax, ay, bx_c1, bx_c0, by_c1, by_c0, cx, cy] */
+  proofs: Array<Array<string>>
+  /** Public inputs shared across all JWTs (indices 0,1,2,3,6,7) as decimal strings */
+  sharedInputs: Array<string>
+  /** partial_rhs per JWT (index 5) as decimal string */
+  partialRhsList: Array<string>
+  /** jwt_exp per JWT (index 4) as decimal string */
+  jwtExpList: Array<string>
 }
-/**
- * Perform a Groth16 trusted setup for the ZKAP circuit.
- *
- * Returns serialized proving key and verifying key bytes (ark_serialize format).
- * These bytes can be written to disk and later passed to `prove` / `verify`.
- */
-export declare function groth16Setup(config: JsCircuitConfig): JsSetupOutput
 /**
  * Generate Groth16 proofs from raw user inputs.
  *
  * Returns serialized proof bytes and hex-encoded public inputs for each JWT token.
  */
 export declare function prove(config: JsCircuitConfig, request: JsProofRequest): JsProofOutput
-/**
- * Verify a single Groth16 proof.
- *
- * - `vk_bytes`: ark_serialize bytes of the verifying key (from `groth16_setup`).
- * - `proof_bytes`: ark_serialize bytes of the proof (from `prove`).
- * - `public_inputs`: field elements as 0x-prefixed hex strings.
- *
- * Returns `true` if the proof is valid.
- */
-export declare function verify(vkBytes: Buffer, proofBytes: Buffer, publicInputs: Array<string>): boolean

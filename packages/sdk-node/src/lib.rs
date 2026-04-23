@@ -52,12 +52,6 @@ fn js_config_to_native(c: JsCircuitConfig) -> zkap_service::CircuitConfig {
     raw.into()
 }
 
-/// Encode a field element as a 0x-prefixed big-endian hex string.
-fn f_to_hex(f: ark_bn254::Fr) -> String {
-    use ark_ff::{BigInteger, PrimeField};
-    format!("0x{}", hex::encode(f.into_bigint().to_bytes_be()))
-}
-
 // ---------------------------------------------------------------------------
 // generate_hash
 // ---------------------------------------------------------------------------
@@ -67,9 +61,7 @@ fn f_to_hex(f: ark_bn254::Fr) -> String {
 /// Returns the result as a 0x-prefixed hex string.
 #[napi]
 pub fn generate_hash(messages: Vec<String>) -> napi::Result<String> {
-    let f = zkap_service::generate_hash(messages)
-        .map_err(|e| napi::Error::from_reason(e.to_string()))?;
-    Ok(f_to_hex(f))
+    zkap_service::generate_hash(messages).map_err(|e| napi::Error::from_reason(e.to_string()))
 }
 
 // ---------------------------------------------------------------------------
@@ -104,8 +96,8 @@ pub fn generate_anchor(
     let anchor = zkap_service::generate_anchor(&params, secrets)
         .map_err(|e| napi::Error::from_reason(e.to_string()))?;
 
-    // PoseidonAnchor<F>(pub Vec<F>)
-    let evaluations = anchor.0.into_iter().map(f_to_hex).collect();
+    // GenerateAnchorResCore { pub anchor: Vec<String> }
+    let evaluations = anchor.anchor;
     Ok(JsAnchorResult { evaluations })
 }
 
@@ -129,11 +121,11 @@ pub fn generate_aud_hash(
     aud_list: Vec<String>,
 ) -> napi::Result<JsAudHashResult> {
     let params = js_config_to_native(config);
-    let (aud_fields, h_aud_list) = zkap_service::generate_aud_hash(&params, aud_list)
+    let result = zkap_service::generate_aud_hash(&params, aud_list)
         .map_err(|e| napi::Error::from_reason(e.to_string()))?;
 
-    let aud_hashes = aud_fields.into_iter().map(f_to_hex).collect();
-    let h_aud_list = f_to_hex(h_aud_list);
+    let aud_hashes = result.individual;
+    let h_aud_list = result.combined;
     Ok(JsAudHashResult {
         aud_hashes,
         h_aud_list,
@@ -154,24 +146,13 @@ pub fn generate_leaf_hash(
     pk_b64: String,
 ) -> napi::Result<String> {
     let params = js_config_to_native(config);
-    let f = zkap_service::generate_leaf_hash(&params, &iss, &pk_b64)
-        .map_err(|e| napi::Error::from_reason(e.to_string()))?;
-    Ok(f_to_hex(f))
+    zkap_service::generate_leaf_hash(&params, &iss, &pk_b64)
+        .map_err(|e| napi::Error::from_reason(e.to_string()))
 }
 
 // ---------------------------------------------------------------------------
 // Proof feature
 // ---------------------------------------------------------------------------
-
-/// Output of `groth16_setup`: serialized proving key and verifying key bytes.
-#[cfg(feature = "proof")]
-#[napi(object)]
-pub struct JsSetupOutput {
-    /// `ark_serialize` bytes of the Groth16 proving key (Node.js Buffer).
-    pub pk_bytes: napi::bindgen_prelude::Buffer,
-    /// `ark_serialize` bytes of the Groth16 verifying key (Node.js Buffer).
-    pub vk_bytes: napi::bindgen_prelude::Buffer,
-}
 
 /// Raw proof request passed from JavaScript to `prove`.
 #[cfg(feature = "proof")]
@@ -189,57 +170,30 @@ pub struct JsProofRequest {
     pub leaf_indices: Vec<i64>,
     /// Merkle root as a hex/decimal field-element string.
     pub root: String,
-    /// Anchor polynomial evaluations plus `hanchor` as the last element.
-    pub anchor: Vec<String>,
+    /// Anchor polynomial evaluations (without hanchor).
+    pub anchor_evals: Vec<String>,
+    /// Combined anchor hash.
+    pub hanchor: String,
     /// Signed UserOperation hash.
     pub h_sign_user_op: String,
     /// Random blinding value.
     pub random: String,
-    /// Allowed audience values as hex/decimal field-element strings.
-    pub aud_list: Vec<String>,
+    /// Allowed audience hash values as hex/decimal field-element strings.
+    pub aud_hash_list: Vec<String>,
 }
 
-/// Output of `prove`: serialized proof bytes and hex-encoded public inputs per proof.
+/// Output of `prove`: Solidity-compatible proof strings and split public inputs per JWT.
 #[cfg(feature = "proof")]
 #[napi(object)]
 pub struct JsProofOutput {
-    /// `ark_serialize` bytes for each generated Groth16 proof (Node.js Buffer per proof).
-    pub proofs: Vec<napi::bindgen_prelude::Buffer>,
-    /// Public inputs per proof, each field element as a 0x-prefixed hex string.
-    pub public_inputs: Vec<Vec<String>>,
-}
-
-/// Perform a Groth16 trusted setup for the ZKAP circuit.
-///
-/// Returns serialized proving key and verifying key bytes (ark_serialize format).
-/// These bytes can be written to disk and later passed to `prove` / `verify`.
-#[cfg(feature = "proof")]
-#[napi]
-pub fn groth16_setup(config: JsCircuitConfig) -> napi::Result<JsSetupOutput> {
-    use ark_serialize::CanonicalSerialize;
-
-    let params = js_config_to_native(config);
-
-    let output = zkap_service::groth16_setup(&params)
-        .map_err(|e| napi::Error::from_reason(e.to_string()))?;
-
-    // pk must be serialized uncompressed — ProofGenerator uses load_key_uncompressed.
-    let mut pk_bytes = Vec::new();
-    output
-        .pk
-        .serialize_uncompressed(&mut pk_bytes)
-        .map_err(|e| napi::Error::from_reason(format!("Failed to serialize pk: {e}")))?;
-
-    let mut vk_bytes = Vec::new();
-    output
-        .vk
-        .serialize_compressed(&mut vk_bytes)
-        .map_err(|e| napi::Error::from_reason(format!("Failed to serialize vk: {e}")))?;
-
-    Ok(JsSetupOutput {
-        pk_bytes: pk_bytes.into(),
-        vk_bytes: vk_bytes.into(),
-    })
+    /// Solidity-compatible proof strings per proof: [ax, ay, bx_c1, bx_c0, by_c1, by_c0, cx, cy]
+    pub proofs: Vec<Vec<String>>,
+    /// Public inputs shared across all JWTs (indices 0,1,2,3,6,7) as decimal strings
+    pub shared_inputs: Vec<String>,
+    /// partial_rhs per JWT (index 5) as decimal string
+    pub partial_rhs_list: Vec<String>,
+    /// jwt_exp per JWT (index 4) as decimal string
+    pub jwt_exp_list: Vec<String>,
 }
 
 /// Generate Groth16 proofs from raw user inputs.
@@ -248,7 +202,6 @@ pub fn groth16_setup(config: JsCircuitConfig) -> napi::Result<JsSetupOutput> {
 #[cfg(feature = "proof")]
 #[napi]
 pub fn prove(config: JsCircuitConfig, request: JsProofRequest) -> napi::Result<JsProofOutput> {
-    use ark_serialize::CanonicalSerialize;
     use std::path::PathBuf;
     use zkap_service::RawProofRequest;
 
@@ -258,74 +211,29 @@ pub fn prove(config: JsCircuitConfig, request: JsProofRequest) -> napi::Result<J
         request.jwts,
         request.pk_ops,
         request.merkle_paths,
-        request.leaf_indices.into_iter().map(|i| i as usize).collect(),
+        request.leaf_indices.into_iter().map(|i| i as u64).collect(),
         request.root,
-        request.anchor,
+        request.anchor_evals,
+        request.hanchor,
         request.h_sign_user_op,
         request.random,
-        request.aud_list,
+        request.aud_hash_list,
     );
 
-    let (proofs, pub_inputs) = zkap_service::prove(&params, raw)
+    let result = zkap_service::prove(&params, raw)
         .map_err(|e| napi::Error::from_reason(e.to_string()))?;
-
-    let proofs: napi::Result<Vec<napi::bindgen_prelude::Buffer>> = proofs
-        .iter()
-        .map(|p| {
-            let mut buf: Vec<u8> = Vec::new();
-            p.serialize_compressed(&mut buf)
-                .map_err(|e| napi::Error::from_reason(format!("Failed to serialize proof: {e}")))?;
-            Ok(buf.into())
-        })
-        .collect();
-
-    let public_inputs = pub_inputs
-        .into_iter()
-        .map(|row| row.into_iter().map(f_to_hex).collect())
-        .collect();
-
+    let proofs: Vec<Vec<String>> = result.proofs.iter().map(|p| {
+        vec![
+            p.a[0].clone(), p.a[1].clone(),
+            p.b[0].clone(), p.b[1].clone(), p.b[2].clone(), p.b[3].clone(),
+            p.c[0].clone(), p.c[1].clone(),
+        ]
+    }).collect();
     Ok(JsProofOutput {
-        proofs: proofs?,
-        public_inputs,
+        proofs,
+        shared_inputs: result.shared_inputs,
+        partial_rhs_list: result.verification_rhs_list,
+        jwt_exp_list: result.jwt_exp_list,
     })
 }
 
-/// Verify a single Groth16 proof.
-///
-/// - `vk_bytes`: ark_serialize bytes of the verifying key (from `groth16_setup`).
-/// - `proof_bytes`: ark_serialize bytes of the proof (from `prove`).
-/// - `public_inputs`: field elements as 0x-prefixed hex strings.
-///
-/// Returns `true` if the proof is valid.
-#[cfg(feature = "proof")]
-#[napi]
-pub fn verify(
-    vk_bytes: napi::bindgen_prelude::Buffer,
-    proof_bytes: napi::bindgen_prelude::Buffer,
-    public_inputs: Vec<String>,
-) -> napi::Result<bool> {
-    use ark_groth16::{PreparedVerifyingKey, Proof, VerifyingKey, prepare_verifying_key};
-    use ark_bn254::Bn254;
-    use ark_serialize::CanonicalDeserialize;
-
-    let vk = VerifyingKey::<Bn254>::deserialize_compressed(&*vk_bytes)
-        .map_err(|e| napi::Error::from_reason(format!("Failed to deserialize vk: {e}")))?;
-    let pvk: PreparedVerifyingKey<Bn254> = prepare_verifying_key(&vk);
-    let proof = Proof::<Bn254>::deserialize_compressed(&*proof_bytes)
-        .map_err(|e| napi::Error::from_reason(format!("Failed to deserialize proof: {e}")))?;
-
-    // Parse hex-encoded field elements produced by f_to_hex ("0x" + 64 hex chars).
-    let inputs: napi::Result<Vec<ark_bn254::Fr>> = public_inputs
-        .iter()
-        .map(|s| {
-            use ark_ff::PrimeField;
-            let hex_str = s.strip_prefix("0x").or_else(|| s.strip_prefix("0X")).unwrap_or(s);
-            let bytes = hex::decode(hex_str)
-                .map_err(|e| napi::Error::from_reason(format!("Invalid hex input '{s}': {e}")))?;
-            Ok(ark_bn254::Fr::from_be_bytes_mod_order(&bytes))
-        })
-        .collect();
-
-    zkap_service::verify(&pvk, &proof, &inputs?)
-        .map_err(|e| napi::Error::from_reason(e.to_string()))
-}

@@ -46,9 +46,6 @@ cargo test
 # Node.js tests (sdk-node)
 cd packages/sdk-node && npm test
 
-# TypeScript facade tests (sdk)
-cd packages/sdk && npm test
-
 # WASM tests
 cd packages/sdk-wasm && wasm-pack test --node
 ```
@@ -95,7 +92,7 @@ Trusted publishing notes:
 
 - After the first manual/bootstrap publish of each package, connect the package to the GitHub Actions trusted publisher on npm.
 - Once all 8 packages are linked, release publishing runs token-free through OIDC.
-- See [docs/release-runbook.md](./docs/release-runbook.md) for the first-publish sequence and npm setup checklist.
+- See the internal release runbook for the first-publish sequence and npm setup checklist.
 
 ## Commit Messages
 

@@ -35,15 +35,25 @@ export interface ProveRequest {
   merkle_paths: string[][];
   leaf_indices: number[];
   root: string;
-  anchor: string[];
+  /** Anchor polynomial evaluations (N - K + 1 entries). */
+  anchor_evals: string[];
+  /** Anchor chain hash (hanchor). */
+  hanchor: string;
   h_sign_user_op: string;
   random: string;
-  aud_list: string[];
+  /** Pre-computed audience hashes (from generateAudHash). */
+  aud_hash_list: string[];
 }
 
 export interface ProveResult {
-  proofs: string[];
-  public_inputs: string[][];
+  /** Solidity-compatible proof per proof: [ax, ay, bx_c1, bx_c0, by_c1, by_c0, cx, cy] */
+  proofs: string[][];
+  /** Public inputs shared across all JWTs (indices 0,1,2,3,6,7) as decimal strings */
+  shared_inputs: string[];
+  /** partial_rhs per JWT (index 5) as decimal string */
+  partial_rhs_list: string[];
+  /** jwt_exp per JWT (index 4) as decimal string */
+  jwt_exp_list: string[];
 }
 
 // ──────────────────────────────────────────────────────────────────
@@ -104,7 +114,7 @@ export async function generateLeafHash(
 
 /**
  * Generate Groth16 proofs (on-device proving).
- * Requires PK to be downloaded and cached via initProveArtifacts().
+ * Requires a proving key file on disk.
  */
 export async function prove(
   config: CircuitConfig,
@@ -122,26 +132,23 @@ export async function prove(
 
 /**
  * NOT supported on React Native.
- * groth16Setup() requires a server environment with large CRS data.
- * Use @baerae/zkap-zkp (Node.js) for setup.
+ * groth16Setup() has been removed from all SDK packages as of v0.1.2.
  */
 export function groth16Setup(): never {
   throw new Error(
     '[zkap/sdk-react-native] groth16Setup() is not supported on mobile. ' +
-    'Use @baerae/zkap-zkp (Node.js) for server-side trusted setup.'
+    'Note: this function has been removed from all SDK packages as of v0.1.2.'
   );
 }
 
 /**
  * NOT supported on React Native.
- * verify() uses a verifying key hardcoded in a smart contract.
- * Use @baerae/zkap-zkp (Node.js) for server-side verification.
+ * verify() has been removed from all SDK packages as of v0.1.2.
  */
 export function verify(): never {
   throw new Error(
     '[zkap/sdk-react-native] verify() is not supported on mobile. ' +
-    'Use @baerae/zkap-zkp (Node.js) for server-side verification.'
+    'Note: this function has been removed from all SDK packages as of v0.1.2.'
   );
 }
 
-export { initProveArtifacts } from './artifact-manager';
