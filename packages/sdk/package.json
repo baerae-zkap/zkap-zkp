@@ -28,11 +28,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/baerae-zkap/zkap-zkp.git",
+    "url": "git+https://github.com/baerae-zkap/zkap-zkp-sdk.git",
     "directory": "packages/sdk"
   },
-  "homepage": "https://github.com/baerae-zkap/zkap-zkp",
-  "bugs": "https://github.com/baerae-zkap/zkap-zkp/issues",
+  "homepage": "https://github.com/baerae-zkap/zkap-zkp-sdk",
+  "bugs": "https://github.com/baerae-zkap/zkap-zkp-sdk/issues",
   "license": "MIT OR Apache-2.0",
   "publishConfig": {
     "registry": "https://registry.npmjs.org/",
