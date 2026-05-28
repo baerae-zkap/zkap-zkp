@@ -1,7 +1,8 @@
 {
   "name": "@baerae/zkap-zkp-wasm",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "WebAssembly bindings for zkap-zkp — Poseidon hash and anchor generation. For proving/verification, use @baerae/zkap-zkp (Node.js).",
+  "types": "./pkg/zkap_zkp_wasm.d.ts",
   "exports": {
     ".": {
       "import": "./pkg/zkap_zkp_wasm.js",
