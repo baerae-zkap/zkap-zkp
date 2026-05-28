@@ -9,10 +9,10 @@ const rootDir = resolve(scriptDir, '..')
 const platformRoot = join(rootDir, 'platform-packages')
 
 const PACKAGES = [
-  ['node-darwin-x64', '@baerae/zkap-zkp-node-darwin-x64', 'index.darwin-x64.node'],
-  ['node-darwin-arm64', '@baerae/zkap-zkp-node-darwin-arm64', 'index.darwin-arm64.node'],
-  ['node-linux-x64-gnu', '@baerae/zkap-zkp-node-linux-x64-gnu', 'index.linux-x64-gnu.node'],
-  ['node-linux-x64-musl', '@baerae/zkap-zkp-node-linux-x64-musl', 'index.linux-x64-musl.node'],
+  ['node-darwin-x64', '@baerae/zkap-zkp-sdk-node-darwin-x64', 'index.darwin-x64.node'],
+  ['node-darwin-arm64', '@baerae/zkap-zkp-sdk-node-darwin-arm64', 'index.darwin-arm64.node'],
+  ['node-linux-x64-gnu', '@baerae/zkap-zkp-sdk-node-linux-x64-gnu', 'index.linux-x64-gnu.node'],
+  ['node-linux-x64-musl', '@baerae/zkap-zkp-sdk-node-linux-x64-musl', 'index.linux-x64-musl.node'],
 ]
 
 const cwd = resolve(process.cwd())

@@ -4,7 +4,7 @@ import {
   generateHash as rnGenerateHash,
   generateLeafHash as rnGenerateLeafHash,
   prove as rnProve,
-} from '@baerae/zkap-zkp-react-native';
+} from '@baerae/zkap-zkp-sdk-react-native';
 import { UnsupportedPlatformError } from './errors';
 import {
   RELEASE_ARTIFACT_NAMES,

@@ -1,23 +1,148 @@
-import type {
-  JsAnchorResult,
-  JsAudHashResult,
-  JsCircuitConfig,
-  JsLoadReleaseOpts,
-  JsLoadReleaseResult,
-  JsParallelProveComparison,
-  JsPrepareProverResult,
-  JsPrepareProverTiming,
-  JsProofRequest,
-  JsProofOutput,
-  JsProveCredential,
-  JsProveTiming,
-  JsSecret,
-  JsVerifyOutput,
-} from '@baerae/zkap-zkp-node';
-import type {
-  InitInput as WasmInitInput,
-  InitOutput as WasmInitOutput,
-} from '@baerae/zkap-zkp-wasm';
+export interface JsSecret {
+  sub: string;
+  iss: string;
+  aud: string;
+}
+
+export interface JsCircuitConfig {
+  maxJwtB64Len: number;
+  maxPayloadB64Len: number;
+  maxAudLen: number;
+  maxExpLen: number;
+  maxIssLen: number;
+  maxNonceLen: number;
+  maxSubLen: number;
+  n: number;
+  k: number;
+  treeHeight: number;
+  numAudienceLimit: number;
+  claims: string[];
+  forbiddenString: string;
+}
+
+export interface JsAnchorResult {
+  evaluations: string[];
+}
+
+export interface JsAudHashResult {
+  audHashes: string[];
+  hAudList: string;
+}
+
+export interface JsProveCredential {
+  jwt: string;
+  rsaModulusB64: string;
+  merklePath: string[];
+  merkleLeafIdx: number;
+}
+
+export interface JsProofRequest {
+  manifestDir: string;
+  random: string;
+  hSignUserOp: string;
+  anchor: string[];
+  merkleRoot: string;
+  credentials: JsProveCredential[];
+}
+
+export interface JsParallelProveComparison {
+  sequentialProveMs: number;
+  sequentialPeakRssMb?: number;
+  sequentialPeakRssDeltaMb?: number;
+  parallelProveMs: number;
+  parallelPeakRssMb?: number;
+  parallelPeakRssDeltaMb?: number;
+  proveMsDelta: number;
+  peakRssMbDelta?: number;
+}
+
+export interface JsProveTiming {
+  loadMs: number;
+  synthesizeMs: number;
+  proveMs: number;
+  totalMs: number;
+  backend: string;
+  proofMode: string;
+  proofPeakRssMb?: number;
+  proofPeakRssDeltaMb?: number;
+  wasmInstantiateMs?: number;
+  wasmCallMs?: number;
+  witnessDeserializeMs?: number;
+  parallelComparison?: JsParallelProveComparison;
+}
+
+export interface JsProofOutput {
+  proofs: string[][];
+  sharedInputs: string[];
+  partialRhsList: string[];
+  jwtExpList: string[];
+  timing: JsProveTiming;
+}
+
+export interface JsPrepareProverTiming {
+  totalMs: number;
+  manifestMs: number;
+  artifactLoadMs: number;
+  ar1CsMs: number;
+  pkMs: number;
+  vkMs: number;
+  pvkMs: number;
+  circuitConfigMs: number;
+  evmVerifierMs: number;
+  witnessGenWasmMs: number;
+  preparedMs: number;
+  wasmCompileMs: number;
+}
+
+export interface JsPrepareProverResult {
+  loadMs: number;
+  cached: boolean;
+  timing?: JsPrepareProverTiming;
+}
+
+export interface JsLoadReleaseOpts {
+  releaseDir: string;
+  shape: string;
+  expectedCircuitCommit?: string;
+  allowCircuitCommitMismatch?: boolean;
+}
+
+export interface JsLoadReleaseResult {
+  stagedDir: string;
+  manifestJson: string;
+  shape: string;
+  releaseSha: string;
+}
+
+export interface JsVerifyOutput {
+  results: boolean[];
+  allValid: boolean;
+}
+
+export type WasmInitInput =
+  | RequestInfo
+  | URL
+  | Response
+  | BufferSource
+  | WebAssembly.Module;
+
+export interface WasmInitOutput {
+  readonly memory: WebAssembly.Memory;
+  readonly generateAnchor: (a: number, b: number, c: number) => void;
+  readonly generateAudHash: (a: number, b: number, c: number, d: number) => void;
+  readonly generateHash: (a: number, b: number, c: number) => void;
+  readonly generateLeafHash: (
+    a: number,
+    b: number,
+    c: number,
+    d: number,
+    e: number,
+    f: number,
+  ) => void;
+  readonly groth16Setup: (a: number) => void;
+  readonly prove: (a: number) => void;
+  readonly verify: (a: number) => void;
+}
 
 export type Secret = JsSecret;
 export type CircuitConfig = JsCircuitConfig;
@@ -86,20 +211,3 @@ export interface ProofOutput {
   jwtExpList: string[];
   timing?: ProveTiming;
 }
-
-export type {
-  JsSecret,
-  JsCircuitConfig,
-  JsAnchorResult,
-  JsAudHashResult,
-  JsProveCredential,
-  JsProofRequest,
-  JsProofOutput,
-  JsProveTiming,
-  JsParallelProveComparison,
-  JsPrepareProverResult,
-  JsPrepareProverTiming,
-  JsLoadReleaseOpts,
-  JsLoadReleaseResult,
-  JsVerifyOutput,
-};

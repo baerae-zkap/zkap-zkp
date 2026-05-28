@@ -30,9 +30,9 @@ jobs:
         run: |
           VERSION="${{ inputs.version }}"
           if [ "$VERSION" = "latest" ]; then
-            SPEC="@baerae/zkap-zkp"
+            SPEC="@baerae/zkap-zkp-sdk-node"
           else
-            SPEC="@baerae/zkap-zkp@$VERSION"
+            SPEC="@baerae/zkap-zkp-sdk-node@$VERSION"
           fi
           echo "value=$SPEC" >> "$GITHUB_OUTPUT"
 
@@ -44,7 +44,7 @@ jobs:
           npm init -y
           npm install "${{ steps.spec.outputs.value }}"
           node - <<'EOF'
-          const { generateHash } = require('@baerae/zkap-zkp')
+          const { generateHash } = require('@baerae/zkap-zkp-sdk-node')
           ;(async () => {
             const result = await generateHash(['1'])
             if (!/^0x[0-9a-f]{64}$/i.test(result)) {
@@ -57,7 +57,7 @@ jobs:
           })
           EOF
 
-      - name: Install and run sync subpath smoke test
+      - name: Install and run synchronous API smoke test
         shell: bash
         run: |
           TMP_DIR="$(mktemp -d)"
@@ -65,12 +65,12 @@ jobs:
           npm init -y
           npm install "${{ steps.spec.outputs.value }}"
           node - <<'EOF'
-          const { generateHash } = require('@baerae/zkap-zkp/node-sync')
+          const { generateHash } = require('@baerae/zkap-zkp-sdk-node')
           const result = generateHash(['1'])
           if (!/^0x[0-9a-f]{64}$/i.test(result)) {
             throw new Error(`unexpected hash output: ${result}`)
           }
-          console.log(`macOS node-sync smoke OK: ${result}`)
+          console.log(`macOS sync API smoke OK: ${result}`)
           EOF
 
   linux-musl-node-smoke:
@@ -86,9 +86,9 @@ jobs:
         run: |
           VERSION="${{ inputs.version }}"
           if [ "$VERSION" = "latest" ]; then
-            SPEC="@baerae/zkap-zkp"
+            SPEC="@baerae/zkap-zkp-sdk-node"
           else
-            SPEC="@baerae/zkap-zkp@$VERSION"
+            SPEC="@baerae/zkap-zkp-sdk-node@$VERSION"
           fi
           echo "value=$SPEC" >> "$GITHUB_OUTPUT"
 
@@ -100,7 +100,7 @@ jobs:
           npm init -y
           npm install "${{ steps.spec.outputs.value }}"
           node - <<'EOF'
-          const { generateHash } = require('@baerae/zkap-zkp')
+          const { generateHash } = require('@baerae/zkap-zkp-sdk-node')
           ;(async () => {
             const result = await generateHash(['1'])
             if (!/^0x[0-9a-f]{64}$/i.test(result)) {

@@ -1,4 +1,4 @@
-/// WASM integration tests for @baerae/zkap-zkp-wasm hash functions.
+/// WASM integration tests for @baerae/zkap-zkp-sdk-wasm hash functions.
 ///
 /// Run with:
 ///   wasm-pack test --node packages/sdk-wasm

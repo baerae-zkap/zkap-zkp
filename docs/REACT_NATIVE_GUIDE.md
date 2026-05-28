@@ -1,6 +1,6 @@
 # React Native Guide
 
-Setup and usage guide for `@baerae/zkap-zkp` in React Native.
+Setup and usage guide for `@baerae/zkap-zkp-sdk-react-native` in React Native.
 
 ## Requirements
 
@@ -19,19 +19,22 @@ The package includes pre-built native binaries:
 ## Installation
 
 ```bash
-npx expo install @baerae/zkap-zkp
+npx expo install @baerae/zkap-zkp-sdk-react-native
 ```
 
 If your project does not use Expo, install the peer dependencies manually:
 
 ```bash
-npm install @baerae/zkap-zkp expo-modules-core
+npm install @baerae/zkap-zkp-sdk-react-native expo-modules-core
 ```
 
-For `downloadRelease()` / `loadCircuitConfig()`, install Expo FileSystem:
+The direct React Native package does not include release-download helpers. If
+you use the `@baerae/zkap-zkp` compatibility facade for
+`downloadRelease()` / `loadCircuitConfig()`, install the facade beside the
+React Native runtime package and add Expo FileSystem:
 
 ```bash
-npx expo install expo-file-system
+npx expo install @baerae/zkap-zkp @baerae/zkap-zkp-sdk-react-native expo-file-system
 ```
 
 ### iOS Setup
@@ -47,7 +50,7 @@ No additional setup required. The native `.so` libraries are bundled in the pack
 ### Verify Installation
 
 ```typescript
-import { generateHash } from '@baerae/zkap-zkp';
+import { generateHash } from '@baerae/zkap-zkp-sdk-react-native';
 
 const hash = await generateHash(['0x1', '0x2']);
 console.log(hash); // '0x...'
@@ -69,35 +72,33 @@ All functions are **async** (they bridge to native Rust code via UniFFI).
 | `generateAudHash` | Yes | Audience hash for proof binding |
 | `generateLeafHash` | Yes | Merkle leaf hash (issuer + RSA key) |
 | `generateAnchor` | Yes | Threshold anchor from credential secrets |
-| `downloadRelease` | No | Download/cache a remote proving bundle as `manifestDir` |
-| `loadCircuitConfig` | No | Read bundle `config.json` as camelCase config |
 | `prove` | Yes | Groth16 proof generation (requires PK) |
 
 For full type signatures, see the [API Reference](API_REFERENCE.md).
 
 ## Config
 
-The public facade uses **camelCase** field names in every runtime. The legacy
-`@baerae/zkap-zkp-react-native` package still accepts its historical snake_case
-shape.
+The direct React Native package uses the historical snake_case config shape.
+The `@baerae/zkap-zkp` compatibility facade converts its camelCase config to
+this shape internally.
 
 ```typescript
-import type { CircuitConfig } from '@baerae/zkap-zkp';
+import type { CircuitConfig } from '@baerae/zkap-zkp-sdk-react-native';
 
 const config: CircuitConfig = {
-  maxJwtB64Len: 1024,
-  maxPayloadB64Len: 640,
-  maxAudLen: 155,
-  maxExpLen: 20,
-  maxIssLen: 93,
-  maxNonceLen: 93,
-  maxSubLen: 93,
+  max_jwt_b64_len: 1024,
+  max_payload_b64_len: 640,
+  max_aud_len: 155,
+  max_exp_len: 20,
+  max_iss_len: 93,
+  max_nonce_len: 93,
+  max_sub_len: 93,
   n: 6,
   k: 3,
-  treeHeight: 4,
-  numAudienceLimit: 5,
+  tree_height: 4,
+  num_audience_limit: 5,
   claims: ['aud', 'exp', 'iss', 'nonce', 'sub'],
-  forbiddenString: 'forbidden',
+  forbidden_string: 'forbidden',
 };
 ```
 
@@ -111,15 +112,15 @@ import {
   generateAudHash,
   generateLeafHash,
   generateAnchor,
-} from '@baerae/zkap-zkp';
+} from '@baerae/zkap-zkp-sdk-react-native';
 
 // Poseidon hash
 const hash = await generateHash(['0x1', '0x2', '0x3']);
 
 // Audience hash
 const audResult = await generateAudHash(config, ['my-audience']);
-console.log(audResult.hAudList);     // combined hash
-console.log(audResult.audHashes);    // per-slot hashes
+console.log(audResult.h_aud_list);   // combined hash
+console.log(audResult.aud_hashes);   // per-slot hashes
 
 // Merkle leaf hash
 const leaf = await generateLeafHash(config, 'https://accounts.google.com', rsaPkB64);
@@ -137,15 +138,31 @@ console.log(anchor.evaluations);
 ## Proof Generation
 
 Proving requires a manifest-backed CRS/proving bundle on disk. The bundle is
-not bundled in the npm package. The recommended mobile flow is:
+not bundled in the npm package. With the direct React Native package, your app
+is responsible for placing a validated bundle in app-accessible storage:
 
-1. Serve the zkap-circuit flat release directory from HTTPS/S3-compatible static hosting.
-2. Call `downloadRelease({ baseUrl, shape })`.
-3. Call `loadCircuitConfig(release.stagedDir)`.
-4. Pass `release.stagedDir` as `manifestDir` to `prove()`.
+1. Serve or bundle a complete zkap-circuit release from a trusted source.
+2. Copy/stage the unprefixed manifest directory into app-accessible storage.
+3. Pass that directory as `manifest_dir` to `prove()`.
 
 ```typescript
-import { downloadRelease, loadCircuitConfig, prove } from '@baerae/zkap-zkp';
+import { prove } from '@baerae/zkap-zkp-sdk-react-native';
+
+const result = await prove(config, {
+  ...request,
+  manifest_dir: manifestDir,
+});
+```
+
+If you want the SDK to download and stage a remote flat release directory, use
+the compatibility facade with this runtime package:
+
+```bash
+npx expo install @baerae/zkap-zkp @baerae/zkap-zkp-sdk-react-native expo-file-system
+```
+
+```typescript
+import { downloadRelease, loadCircuitConfig, prove } from '@baerae/zkap-zkp/react-native';
 
 const release = await downloadRelease({
   baseUrl: 'https://static.example.com/zkap/releases/v0.1.5',
@@ -164,26 +181,26 @@ value is the first 16 hex chars of SHA256 of `<shape>-SHA256SUMS`.
 
 For local device smoke tests without hosted release artifacts, copy a complete
 flat zkap-circuit release directory into app-accessible storage and pass that
-directory as `manifestDir`. The staged directory must contain
+directory as `manifest_dir`. The staged directory must contain
 `manifest.json`, `circuit.ar1cs`, `pk.bin`, `vk.bin`, `pvk.bin`, `config.json`,
 `Groth16Verifier.sol`, and `witness_gen.wasm` from the same release.
 
 ```typescript
-import { prove } from '@baerae/zkap-zkp';
+import { prove } from '@baerae/zkap-zkp-sdk-react-native';
 
 const result = await prove(config, {
-  manifestDir: '/path/to/bundle',
+  manifest_dir: '/path/to/bundle',
   credentials: [...],
-  merkleRoot: '...',
+  merkle_root: '...',
   anchor: anchor.evaluations,
-  hSignUserOp: '...',
+  h_sign_user_op: '...',
   random: '...',
 });
 
 console.log(result.proofs);            // Solidity-compatible proof arrays
-console.log(result.sharedInputs);      // Public inputs shared across JWTs
-console.log(result.partialRhsList);    // Per-JWT partial_rhs
-console.log(result.jwtExpList);        // Per-JWT expiration
+console.log(result.shared_inputs);     // Public inputs shared across JWTs
+console.log(result.partial_rhs_list);  // Per-JWT partial_rhs
+console.log(result.jwt_exp_list);      // Per-JWT expiration
 ```
 
 ### Performance Notes
@@ -198,10 +215,12 @@ console.log(result.jwtExpList);        // Per-JWT expiration
 |----------|--------|
 | `groth16Setup()` | Removed in v0.1.2. Trusted setup is a protocol management operation. |
 | `prepareProver()` | Node.js only; mobile proving loads artifacts inside `prove()`. |
-| `loadRelease()` | Node.js only; use `downloadRelease()` on React Native. |
+| `loadRelease()` | Node.js only. |
+| `downloadRelease()` | Available through the `@baerae/zkap-zkp` compatibility facade. |
+| `loadCircuitConfig()` | Available through the `@baerae/zkap-zkp` compatibility facade. |
 | `verify()` | Node.js only in the facade; React Native throws `UnsupportedPlatformError`. |
 
-Calling either function throws an error with a descriptive message.
+Calling unsupported functions throws an error with a descriptive message.
 
 ## Troubleshooting
 
@@ -209,5 +228,5 @@ Calling either function throws an error with a descriptive message.
 |---------|----------|
 | `Cannot find native module 'ZkapReactNative'` | Rebuild the app (`npx expo run:ios` or `npx expo run:android`) |
 | `expo-modules-core` version error | `npx expo install expo-modules-core` to get a compatible version |
-| `prove()` fails with file not found | Ensure the manifest-backed bundle exists at `manifestDir` |
+| `prove()` fails with file not found | Ensure the manifest-backed bundle exists at `manifest_dir` |
 | Slow proof generation | Expected. Groth16 proving is CPU-intensive on mobile. |

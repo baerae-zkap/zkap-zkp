@@ -1,6 +1,6 @@
 /**
  * Mocha BDD specification for hash helpers exposed by
- * `@baerae/zkap-zkp-node`.
+ * `@baerae/zkap-zkp-sdk-node`.
  *
  * Same scenarios as `__test__/hash.spec.ts` but written as nested
  * `describe` / `context` / `it` blocks with English-sentence
@@ -31,7 +31,7 @@ type Bindings = {
 
 let g: Bindings
 
-describe('@baerae/zkap-zkp-node • hash helpers', function () {
+describe('@baerae/zkap-zkp-sdk-node • hash helpers', function () {
   before(skipIfBindingMissing(this))
 
   before(async function () {

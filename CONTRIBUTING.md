@@ -83,9 +83,9 @@ Release rules:
    - each package version is newer than the npm `latest` tag, unless it is the first publish
 5. Publish order is fixed:
    - platform packages
-   - `@baerae/zkap-zkp-node`
-   - `@baerae/zkap-zkp-wasm`
-   - `@baerae/zkap-zkp-react-native`
+   - `@baerae/zkap-zkp-sdk-node`
+   - `@baerae/zkap-zkp-sdk-wasm`
+   - `@baerae/zkap-zkp-sdk-react-native`
    - `@baerae/zkap-zkp`
 
 Trusted publishing notes:

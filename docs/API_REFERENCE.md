@@ -1,7 +1,27 @@
 # API Reference
 
-Public API for `@baerae/zkap-zkp`. The root package resolves to Node.js,
-browser/WebAssembly, or React Native through package export conditions.
+Public API for the `@baerae/zkap-zkp` compatibility facade. Install it with the
+matching runtime package for your environment:
+
+```bash
+# Node.js
+npm install @baerae/zkap-zkp @baerae/zkap-zkp-sdk-node
+
+# Browser/WebAssembly
+npm install @baerae/zkap-zkp @baerae/zkap-zkp-sdk-wasm
+
+# React Native
+npx expo install @baerae/zkap-zkp @baerae/zkap-zkp-sdk-react-native
+```
+
+Do not install `@baerae/zkap-zkp` by itself unless another dependency already
+provides the matching runtime package. The facade declares runtime packages as
+optional peers so it does not force every environment to install Node,
+WebAssembly, and React Native bindings.
+
+The direct runtime packages keep their runtime-native API shapes. The facade
+normalizes those APIs to Promise-based functions, camelCase config, and shared
+helpers such as `downloadRelease()`.
 
 ## Platform Support
 
@@ -33,8 +53,9 @@ Available for custom integrations. Not used in current production deployments.
 
 ## Naming Conventions
 
-The public `@baerae/zkap-zkp` facade uses **camelCase** config fields in every runtime.
-The legacy `@baerae/zkap-zkp-react-native` package keeps its historical snake_case input shape.
+The compatibility facade uses **camelCase** config fields in every runtime.
+The direct React Native runtime package keeps its historical snake_case input
+shape.
 
 | Node.js / WASM | React Native |
 |-----------------|--------------|
@@ -76,7 +97,7 @@ interface JsCircuitConfig {
 }
 ```
 
-### Legacy React Native package
+### Direct React Native package
 
 ```typescript
 interface CircuitConfig {
@@ -130,7 +151,7 @@ Compute a Poseidon hash of one or more field-element strings.
 ### Node.js
 
 ```typescript
-import { generateHash } from '@baerae/zkap-zkp';
+import { generateHash } from '@baerae/zkap-zkp/node';
 
 const hash = await generateHash(['0x1', '0x2', '0x3']);
 // => '0x2b7e15...'
@@ -139,7 +160,7 @@ const hash = await generateHash(['0x1', '0x2', '0x3']);
 ### WASM
 
 ```typescript
-import { initZkap, generateHash } from '@baerae/zkap-zkp';
+import { initZkap, generateHash } from '@baerae/zkap-zkp/wasm';
 
 await initZkap();
 const hash = await generateHash(['0x1', '0x2', '0x3']);
@@ -148,7 +169,7 @@ const hash = await generateHash(['0x1', '0x2', '0x3']);
 ### React Native
 
 ```typescript
-import { generateHash } from '@baerae/zkap-zkp';
+import { generateHash } from '@baerae/zkap-zkp/react-native';
 
 const hash = await generateHash(['0x1', '0x2', '0x3']);
 ```
@@ -171,7 +192,7 @@ Compute per-audience Poseidon hashes and a combined audience-list hash. Used to 
 ### Node.js
 
 ```typescript
-import { generateAudHash } from '@baerae/zkap-zkp';
+import { generateAudHash } from '@baerae/zkap-zkp/node';
 
 const result = await generateAudHash(config, ['client-a', 'client-b']);
 console.log(result.hAudList);    // '0x...'
@@ -181,7 +202,7 @@ console.log(result.audHashes);   // ['0x...', '0x...', ...]
 ### WASM
 
 ```typescript
-import { initZkap, generateAudHash } from '@baerae/zkap-zkp';
+import { initZkap, generateAudHash } from '@baerae/zkap-zkp/wasm';
 
 await initZkap();
 const result = await generateAudHash(config, ['client-a', 'client-b']);
@@ -190,7 +211,7 @@ const result = await generateAudHash(config, ['client-a', 'client-b']);
 ### React Native
 
 ```typescript
-import { generateAudHash } from '@baerae/zkap-zkp';
+import { generateAudHash } from '@baerae/zkap-zkp/react-native';
 
 const result = await generateAudHash(config, ['client-a', 'client-b']);
 console.log(result.hAudList);    // '0x...'
@@ -212,7 +233,7 @@ Compute the Merkle leaf hash for an issuer + RSA public-key modulus. Used to bui
 ### Node.js
 
 ```typescript
-import { generateLeafHash } from '@baerae/zkap-zkp';
+import { generateLeafHash } from '@baerae/zkap-zkp/node';
 
 const leaf = await generateLeafHash(config, 'https://accounts.google.com', pkModulusB64);
 ```
@@ -220,7 +241,7 @@ const leaf = await generateLeafHash(config, 'https://accounts.google.com', pkMod
 ### WASM
 
 ```typescript
-import { initZkap, generateLeafHash } from '@baerae/zkap-zkp';
+import { initZkap, generateLeafHash } from '@baerae/zkap-zkp/wasm';
 
 await initZkap();
 const leaf = await generateLeafHash(config, 'https://accounts.google.com', pkModulusB64);
@@ -229,7 +250,7 @@ const leaf = await generateLeafHash(config, 'https://accounts.google.com', pkMod
 ### React Native
 
 ```typescript
-import { generateLeafHash } from '@baerae/zkap-zkp';
+import { generateLeafHash } from '@baerae/zkap-zkp/react-native';
 
 const leaf = await generateLeafHash(config, 'https://accounts.google.com', pkModulusB64);
 ```
@@ -261,7 +282,7 @@ interface Secret {
 ### Node.js
 
 ```typescript
-import { generateAnchor } from '@baerae/zkap-zkp';
+import { generateAnchor } from '@baerae/zkap-zkp/node';
 
 const secrets = Array.from({ length: config.n }, (_, i) => ({
   sub: `user-${i}`,
@@ -276,7 +297,7 @@ console.log(anchor.evaluations); // ['0x...', '0x...', ...]
 ### WASM
 
 ```typescript
-import { initZkap, generateAnchor } from '@baerae/zkap-zkp';
+import { initZkap, generateAnchor } from '@baerae/zkap-zkp/wasm';
 
 await initZkap();
 const anchor = await generateAnchor(config, secrets);
@@ -285,7 +306,7 @@ const anchor = await generateAnchor(config, secrets);
 ### React Native
 
 ```typescript
-import { generateAnchor } from '@baerae/zkap-zkp';
+import { generateAnchor } from '@baerae/zkap-zkp/react-native';
 
 const anchor = await generateAnchor(config, secrets);
 ```
@@ -352,7 +373,7 @@ Same shape as `loadRelease()`:
 ### Example
 
 ```typescript
-import { downloadRelease, loadCircuitConfig, prove } from '@baerae/zkap-zkp';
+import { downloadRelease, loadCircuitConfig, prove } from '@baerae/zkap-zkp/node';
 
 const release = await downloadRelease({
   baseUrl: 'https://static.example.com/zkap/releases/v0.1.5',
@@ -366,7 +387,7 @@ const result = await prove(config, {
 });
 ```
 
-React Native uses `expo-file-system` for filesystem access. Install it with
+The facade's React Native export uses `expo-file-system` for filesystem access. Install it with
 `npx expo install expo-file-system` when using `downloadRelease()` or
 `loadCircuitConfig()` in a mobile app.
 
@@ -382,7 +403,7 @@ camelCase `CircuitConfig`.
 and is available in every runtime.
 
 ```typescript
-import { loadCircuitConfig, normalizeCircuitConfig } from '@baerae/zkap-zkp';
+import { loadCircuitConfig, normalizeCircuitConfig } from '@baerae/zkap-zkp/node';
 
 const config = await loadCircuitConfig(release.stagedDir);
 const sameShape = normalizeCircuitConfig({
@@ -433,7 +454,7 @@ Requires a manifest-backed CRS/proving bundle on disk.
 ### Node.js
 
 ```typescript
-import { prove } from '@baerae/zkap-zkp';
+import { prove } from '@baerae/zkap-zkp/node';
 
 const result = await prove(config, {
   manifestDir: '/path/to/bundle',
@@ -451,7 +472,7 @@ console.log(result.sharedInputs);  // Shared public inputs
 ### React Native
 
 ```typescript
-import { prove } from '@baerae/zkap-zkp';
+import { prove } from '@baerae/zkap-zkp/react-native';
 
 const result = await prove(config, {
   manifestDir: '/path/to/bundle',

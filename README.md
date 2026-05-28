@@ -6,18 +6,44 @@ Zero-Knowledge Proof SDK for Node.js, WebAssembly, and React Native, based on Gr
 
 | Package | Platform | Install |
 |---------|----------|---------|
-| [`@baerae/zkap-zkp`](./packages/sdk) | Node.js / Browser WebAssembly / React Native | `npm install @baerae/zkap-zkp` |
+| [`@baerae/zkap-zkp-sdk-node`](./packages/sdk-node) | Node.js | `npm install @baerae/zkap-zkp-sdk-node` |
+| [`@baerae/zkap-zkp-sdk-wasm`](./packages/sdk-wasm) | Browser WebAssembly | `npm install @baerae/zkap-zkp-sdk-wasm` |
+| [`@baerae/zkap-zkp-sdk-react-native`](./packages/sdk-react-native) | React Native | `npm install @baerae/zkap-zkp-sdk-react-native` |
+| [`@baerae/zkap-zkp`](./packages/sdk) | Compatibility facade | `npm install @baerae/zkap-zkp <runtime package>` |
 
-`@baerae/zkap-zkp` resolves runtime implementations through internal packages:
-`@baerae/zkap-zkp-node`, `@baerae/zkap-zkp-wasm`, `@baerae/zkap-zkp-react-native`,
-and platform-specific optional native binary packages. Most users should install
-only `@baerae/zkap-zkp`.
+Install the package for the runtime you actually run. The runtime-specific
+packages are the recommended default for new applications.
+
+The compatibility facade keeps the historical `@baerae/zkap-zkp` import paths,
+but its runtime packages are optional peers. Installing `@baerae/zkap-zkp` by
+itself does not install a Node, WebAssembly, or React Native implementation.
+Install exactly one matching runtime package beside it when you need the facade:
+
+```bash
+# Node.js facade API
+npm install @baerae/zkap-zkp @baerae/zkap-zkp-sdk-node
+
+# Browser/WebAssembly facade API
+npm install @baerae/zkap-zkp @baerae/zkap-zkp-sdk-wasm
+
+# React Native facade API
+npx expo install @baerae/zkap-zkp @baerae/zkap-zkp-sdk-react-native
+```
+
+This package manager model is intentional: npm cannot reliably infer whether a
+consumer project is a Node.js server, a browser bundle, or a React Native app at
+install time, so the runtime package is selected explicitly by the application.
+
+The runtime packages expose their existing runtime-specific APIs. Use the
+`@baerae/zkap-zkp` facade only when you need the uniform Promise-based API and
+helpers such as `downloadRelease()`.
 
 ## Capability Matrix
 
 ### Core API
 
-Functions actively used in production integrations.
+Functions actively used in production integrations through the compatibility
+facade.
 
 | API | Node.js | WASM | React Native | Notes |
 |-----|---------|------|--------------|-------|
@@ -44,80 +70,70 @@ Available for custom integrations. Not used in current production deployments.
 ## Quick Start
 
 ```bash
-npm install @baerae/zkap-zkp
+npm install @baerae/zkap-zkp-sdk-node
 ```
 
 ```typescript
-import { initZkap, generateHash, generateAudHash, generateAnchor } from '@baerae/zkap-zkp';
+import { generateHash, generateAudHash, generateAnchor } from '@baerae/zkap-zkp-sdk-node';
 
-await initZkap(); // optional no-op on Node/RN, preloads WASM in browsers
-
-// Hash functions work immediately (no setup required)
-const hash = await generateHash(['0x1', '0x2']);
+const hash = generateHash(['0x1', '0x2']);
 
 // Audience hash
-const audResult = await generateAudHash(config, ['my-audience']);
+const audResult = generateAudHash(config, ['my-audience']);
 
 // Threshold anchor (requires exactly n secrets)
-const anchor = await generateAnchor(config, secrets);
+const anchor = generateAnchor(config, secrets);
 ```
 
-For proving, download or stage a manifest-backed CRS bundle first. The package
-provides `downloadRelease()` for a flat zkap-circuit release directory served
-over HTTPS/S3-compatible static hosting:
+For proving, stage a manifest-backed CRS bundle first:
 
 ```typescript
-import { downloadRelease, loadCircuitConfig, prove } from '@baerae/zkap-zkp';
+import { loadRelease, prove } from '@baerae/zkap-zkp-sdk-node';
 
-const release = await downloadRelease({
-  baseUrl: 'https://static.example.com/zkap/releases/v0.1.5',
+const release = loadRelease({
+  releaseDir: '/path/to/flat-release',
   shape: '3-of-3',
-  // Pin this in production after reading the releaseSha from a trusted channel.
-  expectedReleaseSha: '50aaaa8fe35fc261',
 });
-const config = await loadCircuitConfig(release.stagedDir);
-const result = await prove(config, { manifestDir: release.stagedDir, ...request });
+const result = prove(config, { manifestDir: release.stagedDir, ...request });
 ```
 
 ## Quick Start -- Browser (WebAssembly)
 
+```bash
+npm install @baerae/zkap-zkp-sdk-wasm
+```
+
 ```typescript
-import { initZkap, generateHash, generateAnchor, generateAudHash } from '@baerae/zkap-zkp';
+import initZkap, { generateHash, generateAnchor, generateAudHash } from '@baerae/zkap-zkp-sdk-wasm';
 
 await initZkap(); // Initialize WASM module
-const hash = await generateHash(['0x1', '0x2']);
+const hash = generateHash(['0x1', '0x2']);
 ```
 
 ## Quick Start -- React Native (Expo)
 
 ```bash
-npx expo install @baerae/zkap-zkp
+npx expo install @baerae/zkap-zkp-sdk-react-native
 ```
 
 ```typescript
-import { downloadRelease, generateHash, generateAnchor, loadCircuitConfig, prove } from '@baerae/zkap-zkp';
+import { generateHash, generateAnchor, prove } from '@baerae/zkap-zkp-sdk-react-native';
 
 // Hash functions (no setup required)
 const hash = await generateHash(['0x1', '0x2']);
 
-// Proving (downloads/caches a CRS/proving bundle on disk)
-const release = await downloadRelease({
-  baseUrl: 'https://static.example.com/zkap/releases/v0.1.5',
-  shape: '3-of-3',
-});
-const config = await loadCircuitConfig(release.stagedDir);
-const result = await prove(config, { manifestDir: release.stagedDir, ...request });
+// Proving expects an app-accessible manifest directory containing the CRS bundle.
+const result = await prove(config, { manifest_dir: manifestDir, ...request });
 ```
 
-> Requires Expo New Architecture (`expo-modules-core >= 1.12.0`). Native binaries (iOS XCFramework, Android `.so`) are bundled in the package. `downloadRelease()` on React Native uses `expo-file-system`; install it with `npx expo install expo-file-system` if your app does not already include it.
+> Requires Expo New Architecture (`expo-modules-core >= 1.12.0`). Native binaries (iOS XCFramework, Android `.so`) are bundled in the package. The compatibility facade's React Native `downloadRelease()` helper uses `expo-file-system`; install it with `npx expo install expo-file-system` if your app uses that helper.
 
 See the [React Native Guide](docs/REACT_NATIVE_GUIDE.md) for full setup instructions.
 
 ## Naming Conventions
 
-The public `@baerae/zkap-zkp` facade uses **camelCase** config fields in every
-runtime. The legacy React Native package still accepts its historical snake_case
-shape.
+The compatibility facade uses **camelCase** config fields in every runtime.
+The direct React Native runtime package keeps its historical snake_case shape.
 
 | Node.js / WASM | React Native |
 |-----------------|--------------|
@@ -158,8 +174,9 @@ channel.
 - **WASM:** `prove()` is not supported.
 - **Browser/WASM:** `downloadRelease()` is not supported because browsers cannot
   expose a native filesystem `manifestDir` to the prover.
-- **Node sync compatibility:** use `@baerae/zkap-zkp/node-sync` when a synchronous
-  Node-only API is required.
+- **Node sync compatibility:** the direct `@baerae/zkap-zkp-sdk-node` package is
+  synchronous. The compatibility facade also exposes `@baerae/zkap-zkp/node-sync`
+  for a synchronous Node-only API.
 
 ## Documentation
 

@@ -1,5 +1,5 @@
 /**
- * Tests for hash-related NAPI bindings in @baerae/zkap-zkp-node.
+ * Tests for hash-related NAPI bindings in @baerae/zkap-zkp-sdk-node.
  *
  * Run after building the native binary:
  *   npm run build  (or cargo-napi build --platform)

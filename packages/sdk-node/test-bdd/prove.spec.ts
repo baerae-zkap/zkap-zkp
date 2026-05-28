@@ -1,6 +1,6 @@
 /**
  * Mocha BDD specification for `prove()` exposed by
- * `@baerae/zkap-zkp-node`.
+ * `@baerae/zkap-zkp-sdk-node`.
  *
  * Scenarios mirror `__test__/proof.spec.ts` (same env-var contract for
  * the happy-path fixtures) but written as nested `describe` /
@@ -67,7 +67,7 @@ function dummyConfig() {
 
 const ZERO_FE = '0x00'
 
-describe('@baerae/zkap-zkp-node • prove', function () {
+describe('@baerae/zkap-zkp-sdk-node • prove', function () {
   before(skipIfBindingMissing(this))
 
   before(async function () {

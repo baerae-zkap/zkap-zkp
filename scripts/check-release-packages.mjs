@@ -11,31 +11,31 @@ const rootDir = resolve(__dirname, '..')
 const RELEASE_PACKAGES = [
   {
     path: 'platform-packages/node-darwin-x64/package.json',
-    name: '@baerae/zkap-zkp-node-darwin-x64',
+    name: '@baerae/zkap-zkp-sdk-node-darwin-x64',
   },
   {
     path: 'platform-packages/node-darwin-arm64/package.json',
-    name: '@baerae/zkap-zkp-node-darwin-arm64',
+    name: '@baerae/zkap-zkp-sdk-node-darwin-arm64',
   },
   {
     path: 'platform-packages/node-linux-x64-gnu/package.json',
-    name: '@baerae/zkap-zkp-node-linux-x64-gnu',
+    name: '@baerae/zkap-zkp-sdk-node-linux-x64-gnu',
   },
   {
     path: 'platform-packages/node-linux-x64-musl/package.json',
-    name: '@baerae/zkap-zkp-node-linux-x64-musl',
+    name: '@baerae/zkap-zkp-sdk-node-linux-x64-musl',
   },
   {
     path: 'packages/sdk-node/package.json',
-    name: '@baerae/zkap-zkp-node',
+    name: '@baerae/zkap-zkp-sdk-node',
   },
   {
     path: 'packages/sdk-wasm/package.json',
-    name: '@baerae/zkap-zkp-wasm',
+    name: '@baerae/zkap-zkp-sdk-wasm',
   },
   {
     path: 'packages/sdk-react-native/package.json',
-    name: '@baerae/zkap-zkp-react-native',
+    name: '@baerae/zkap-zkp-sdk-react-native',
   },
   {
     path: 'packages/sdk/package.json',
@@ -164,10 +164,10 @@ if (expectedVersion && version !== expectedVersion) {
 }
 
 const sdkPkg = packages.find((pkg) => pkg.name === '@baerae/zkap-zkp')
-const sdkNodePkg = packages.find((pkg) => pkg.name === '@baerae/zkap-zkp-node')
-const sdkWasmPkg = packages.find((pkg) => pkg.name === '@baerae/zkap-zkp-wasm')
-const sdkReactNativePkg = packages.find((pkg) => pkg.name === '@baerae/zkap-zkp-react-native')
-const platformPackages = packages.filter((pkg) => pkg.name.startsWith('@baerae/zkap-zkp-node-'))
+const sdkNodePkg = packages.find((pkg) => pkg.name === '@baerae/zkap-zkp-sdk-node')
+const sdkWasmPkg = packages.find((pkg) => pkg.name === '@baerae/zkap-zkp-sdk-wasm')
+const sdkReactNativePkg = packages.find((pkg) => pkg.name === '@baerae/zkap-zkp-sdk-react-native')
+const platformPackages = packages.filter((pkg) => pkg.name.startsWith('@baerae/zkap-zkp-sdk-node-'))
 const platformPackageNames = new Set(platformPackages.map((pkg) => pkg.name))
 const platformTargets = new Set([
   'x86_64-apple-darwin',
@@ -177,10 +177,22 @@ const platformTargets = new Set([
 ])
 
 for (const depPkg of [sdkNodePkg, sdkWasmPkg, sdkReactNativePkg]) {
-  const depVersion = sdkPkg.json.dependencies?.[depPkg.name]
+  const depVersion = sdkPkg.json.peerDependencies?.[depPkg.name]
   if (depVersion !== version) {
     console.error(
-      `packages/sdk/package.json must depend on ${depPkg.name}@${version}, found ${depVersion}`,
+      `packages/sdk/package.json must peerDepend on ${depPkg.name}@${version}, found ${depVersion}`,
+    )
+    process.exit(1)
+  }
+  if (sdkPkg.json.dependencies?.[depPkg.name]) {
+    console.error(
+      `packages/sdk/package.json must not hard-depend on ${depPkg.name}; runtime SDK packages must stay optional`,
+    )
+    process.exit(1)
+  }
+  if (sdkPkg.json.peerDependenciesMeta?.[depPkg.name]?.optional !== true) {
+    console.error(
+      `packages/sdk/package.json must mark peer ${depPkg.name} optional`,
     )
     process.exit(1)
   }
@@ -197,7 +209,7 @@ for (const platformPkg of platformPackages) {
 }
 
 for (const depName of Object.keys(sdkNodePkg.json.optionalDependencies ?? {})) {
-  if (depName.startsWith('@baerae/zkap-zkp-node-') && !platformPackageNames.has(depName)) {
+  if (depName.startsWith('@baerae/zkap-zkp-sdk-node-') && !platformPackageNames.has(depName)) {
     console.error(`packages/sdk-node/package.json has unexpected platform optionalDependency ${depName}`)
     process.exit(1)
   }

@@ -1,11 +1,11 @@
-# `@baerae/zkap-zkp-react-native`
+# `@baerae/zkap-zkp-sdk-react-native`
 
 React Native SDK for zkap-zkp with Expo modules integration.
 
 Install:
 
 ```bash
-npm install @baerae/zkap-zkp-react-native
+npx expo install @baerae/zkap-zkp-sdk-react-native
 ```
 
 Requires Expo New Architecture and the following peer dependencies:
@@ -15,13 +15,18 @@ Requires Expo New Architecture and the following peer dependencies:
 - `react-native`
 
 ```ts
-import { generateHash, generateAnchor } from '@baerae/zkap-zkp-react-native'
+import { generateHash, generateAnchor } from '@baerae/zkap-zkp-sdk-react-native'
 
 const hash = await generateHash(['0x1', '0x2'])
 const anchor = await generateAnchor(config, secrets)
 ```
 
 The npm package bundles the iOS XCFramework and Android `.so` libraries produced by CI.
+
+This direct runtime package exposes the React Native UniFFI API and keeps the
+historical snake_case request/config shape. Use `@baerae/zkap-zkp` with this
+package when you need the camelCase compatibility facade plus helpers such as
+`downloadRelease()` and `loadCircuitConfig()`.
 
 `prove()` expects a downloaded zkap-circuit release bundle that includes
 `manifest.json`, `pk.bin`, `circuit.ar1cs`, and `witness_gen.wasm` from the same

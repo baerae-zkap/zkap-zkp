@@ -1,7 +1,7 @@
 {
   "name": "@baerae/zkap-zkp",
   "version": "0.1.5",
-  "description": "Multi-runtime SDK for zkap-zkp: Node.js, WebAssembly, and React Native.",
+  "description": "Compatibility facade for the zkap-zkp runtime SDK packages.",
   "main": "./dist/node.cjs",
   "module": "./dist/node.mjs",
   "types": "./dist/index.d.ts",
@@ -70,15 +70,22 @@
     "registry": "https://registry.npmjs.org/",
     "access": "public"
   },
-  "dependencies": {
-    "@baerae/zkap-zkp-node": "0.1.5",
-    "@baerae/zkap-zkp-react-native": "0.1.5",
-    "@baerae/zkap-zkp-wasm": "0.1.5"
-  },
   "peerDependencies": {
+    "@baerae/zkap-zkp-sdk-node": "0.1.5",
+    "@baerae/zkap-zkp-sdk-react-native": "0.1.5",
+    "@baerae/zkap-zkp-sdk-wasm": "0.1.5",
     "expo-file-system": ">=17"
   },
   "peerDependenciesMeta": {
+    "@baerae/zkap-zkp-sdk-node": {
+      "optional": true
+    },
+    "@baerae/zkap-zkp-sdk-react-native": {
+      "optional": true
+    },
+    "@baerae/zkap-zkp-sdk-wasm": {
+      "optional": true
+    },
     "expo-file-system": {
       "optional": true
     }
