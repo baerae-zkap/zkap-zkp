@@ -3,14 +3,17 @@ resolver = "2"
 members = [
     "packages/sdk-node",
     "packages/sdk-wasm",
+    "crates/prover",
     "crates/uniffi-bindings",
 ]
 
 [workspace.dependencies]
-zkap-service = { git = "https://github.com/snp-labs/zkap-circuit.git", branch = "develop" }
+zkap-service = { git = "https://github.com/snp-labs/zkap-circuit.git", rev = "d600a8782f2ae5be89755b3de4dde80473741356", default-features = false }
+ark-ar1cs = { git = "https://github.com/baerae-zkap/ark-ar1cs", rev = "ae071aeb704c58721ee00bf3f8b1b15896bae8af" }
 mimalloc = { version = "0.1.48", default-features = false }
 napi = { version = "2.16", features = ["napi8"] }
 napi-derive = { version = "2.16" }
+rayon = "1"
 
 [workspace.metadata.ark]
 # parallel feature는 zkap-circuit workspace.dependencies에서 default-features=false로 비활성화됨

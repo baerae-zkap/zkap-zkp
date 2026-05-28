@@ -1,0 +1,4 @@
+{
+  "//": "Treat .ts files in this dir as ESM. mocha resolves them via tsx/esm; CJS require fallback would otherwise miss the .js→.ts mapping.",
+  "type": "module"
+}

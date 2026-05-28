@@ -6,7 +6,7 @@
 /// Fixtures match zkap-circuit/tests/groth16_integration.rs and
 /// packages/sdk-node/__test__/hash.spec.ts so all three test suites
 /// produce consistent results from the same inputs.
-use js_sys::{Array, JSON, Reflect};
+use js_sys::{Array, Reflect, JSON};
 use wasm_bindgen::JsValue;
 use wasm_bindgen_test::*;
 
@@ -51,8 +51,7 @@ fn default_secrets() -> JsValue {
             )
         })
         .collect();
-    JSON::parse(&format!("[{}]", entries.join(",")))
-        .expect("JSON.parse for default_secrets failed")
+    JSON::parse(&format!("[{}]", entries.join(","))).expect("JSON.parse for default_secrets failed")
 }
 
 /// Minimal 2048-bit RSA modulus placeholder (256 × 0xFF bytes, base64-encoded).
@@ -65,8 +64,16 @@ fn dummy_pk_b64() -> String {
 fn assert_hex256(s: &str) {
     assert!(s.starts_with("0x"), "Expected 0x prefix, got: {s}");
     let hex = &s[2..];
-    assert_eq!(hex.len(), 64, "Expected 64 hex chars, got {} in: {s}", hex.len());
-    assert!(hex.chars().all(|c| c.is_ascii_hexdigit()), "Non-hex char in: {s}");
+    assert_eq!(
+        hex.len(),
+        64,
+        "Expected 64 hex chars, got {} in: {s}",
+        hex.len()
+    );
+    assert!(
+        hex.chars().all(|c| c.is_ascii_hexdigit()),
+        "Non-hex char in: {s}"
+    );
 }
 
 /// Get a named string field from a JsValue object.
@@ -81,7 +88,10 @@ fn field_str(obj: &JsValue, key: &str) -> String {
 fn field_str_array(obj: &JsValue, key: &str) -> Vec<String> {
     Array::from(&Reflect::get(obj, &JsValue::from_str(key)).unwrap())
         .iter()
-        .map(|v| v.as_string().unwrap_or_else(|| panic!("array element is not a string")))
+        .map(|v| {
+            v.as_string()
+                .unwrap_or_else(|| panic!("array element is not a string"))
+        })
         .collect()
 }
 
@@ -91,8 +101,8 @@ fn field_str_array(obj: &JsValue, key: &str) -> Vec<String> {
 
 #[wasm_bindgen_test]
 fn generate_hash_single_message_returns_hex256() {
-    let result = zkap_zkp_wasm::generate_hash(vec!["12345".to_string()])
-        .expect("generate_hash failed");
+    let result =
+        zkap_zkp_wasm::generate_hash(vec!["12345".to_string()]).expect("generate_hash failed");
     assert_hex256(&result);
 }
 
@@ -152,8 +162,7 @@ fn generate_anchor_different_secrets_differ() {
             )
         })
         .collect();
-    let secrets_b =
-        JSON::parse(&format!("[{}]", alt_entries.join(","))).unwrap();
+    let secrets_b = JSON::parse(&format!("[{}]", alt_entries.join(","))).unwrap();
 
     let a = zkap_zkp_wasm::generate_anchor(default_config(), default_secrets()).unwrap();
     let b = zkap_zkp_wasm::generate_anchor(default_config(), secrets_b).unwrap();
@@ -171,7 +180,10 @@ fn generate_anchor_rejects_wrong_secret_count() {
     )
     .unwrap();
     let result = zkap_zkp_wasm::generate_anchor(default_config(), one);
-    assert!(result.is_err(), "Expected error for wrong number of secrets");
+    assert!(
+        result.is_err(),
+        "Expected error for wrong number of secrets"
+    );
 }
 
 #[wasm_bindgen_test]
@@ -317,8 +329,14 @@ fn groth16_setup_returns_unsupported_error() {
     let result = zkap_zkp_wasm::groth16_setup();
     assert!(result.is_err());
     let msg = result.unwrap_err().as_string().unwrap_or_default();
-    assert!(msg.contains("groth16Setup"), "Error should mention function name, got: {msg}");
-    assert!(msg.contains("not supported"), "Error should say 'not supported', got: {msg}");
+    assert!(
+        msg.contains("groth16Setup"),
+        "Error should mention function name, got: {msg}"
+    );
+    assert!(
+        msg.contains("not supported"),
+        "Error should say 'not supported', got: {msg}"
+    );
 }
 
 #[wasm_bindgen_test]
@@ -326,8 +344,14 @@ fn prove_returns_unsupported_error() {
     let result = zkap_zkp_wasm::prove();
     assert!(result.is_err());
     let msg = result.unwrap_err().as_string().unwrap_or_default();
-    assert!(msg.contains("prove"), "Error should mention function name, got: {msg}");
-    assert!(msg.contains("not supported"), "Error should say 'not supported', got: {msg}");
+    assert!(
+        msg.contains("prove"),
+        "Error should mention function name, got: {msg}"
+    );
+    assert!(
+        msg.contains("not supported"),
+        "Error should say 'not supported', got: {msg}"
+    );
 }
 
 #[wasm_bindgen_test]
@@ -335,6 +359,12 @@ fn verify_returns_unsupported_error() {
     let result = zkap_zkp_wasm::verify();
     assert!(result.is_err());
     let msg = result.unwrap_err().as_string().unwrap_or_default();
-    assert!(msg.contains("verify"), "Error should mention function name, got: {msg}");
-    assert!(msg.contains("not supported"), "Error should say 'not supported', got: {msg}");
+    assert!(
+        msg.contains("verify"),
+        "Error should mention function name, got: {msg}"
+    );
+    assert!(
+        msg.contains("not supported"),
+        "Error should say 'not supported', got: {msg}"
+    );
 }

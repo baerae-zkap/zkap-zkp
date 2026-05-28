@@ -1,6 +1,6 @@
 {
   "name": "@baerae/zkap-zkp-node-linux-x64-gnu",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Linux x64 (glibc) binary for @baerae/zkap-zkp-node",
   "os": [
     "linux"
@@ -12,6 +12,9 @@
   "files": [
     "index.linux-x64-gnu.node"
   ],
+  "scripts": {
+    "prepack": "node ../../scripts/verify-node-platform-packages.mjs"
+  },
   "license": "MIT OR Apache-2.0",
   "publishConfig": {
     "registry": "https://registry.npmjs.org/",

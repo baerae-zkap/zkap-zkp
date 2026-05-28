@@ -1,0 +1,27 @@
+[package]
+name        = "zkap-zkp-prover"
+version     = "0.1.0"
+edition     = "2021"
+license     = "MIT OR Apache-2.0"
+description = "Release staging utilities for ZKAP circuit artifacts."
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+thiserror = "1"
+
+# Release loader (src/release.rs): cross-platform advisory file locking
+# for the staged-bundle cache. fs2::FileExt::lock_exclusive is mandatory —
+# hand-rolled O_EXCL has incorrect semantics under SIGKILL'd workers.
+fs2 = "0.4"
+
+# Streaming SHA256 over staged artifacts (700MB pk.bin sub-second on the
+# dev host). hex encodes the digest into the format used by SHA256SUMS.
+sha2 = "0.10"
+hex = "0.4"
+
+# Per-shape manifest.json parsing for witness_gen.wasm sha lookup —
+# kept as serde_json::Value so this crate doesn't have to mirror
+# zkap-service's Manifest type evolution.
+serde_json = "1"
