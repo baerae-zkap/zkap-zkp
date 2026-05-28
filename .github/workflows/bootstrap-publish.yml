@@ -372,6 +372,9 @@ jobs:
       - name: Verify React Native package binaries
         run: node scripts/check-rn-native-artifacts.mjs
 
+      - name: Run packed consumer smoke
+        run: npm run smoke:packed-consumers
+
       - name: Publish dry-run for all packages
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

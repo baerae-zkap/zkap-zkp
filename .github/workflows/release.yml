@@ -408,6 +408,9 @@ jobs:
       - name: Verify React Native package binaries
         run: node scripts/check-rn-native-artifacts.mjs
 
+      - name: Run packed consumer smoke
+        run: npm run smoke:packed-consumers
+
       - name: Publish dry-run for all packages
         run: |
           npm publish ./platform-packages/node-darwin-x64 --dry-run --access public
