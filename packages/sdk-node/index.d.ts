@@ -62,30 +62,38 @@ export declare function generateAudHash(config: JsCircuitConfig, audList: Array<
  * Returns the leaf field element as a 0x-prefixed hex string.
  */
 export declare function generateLeafHash(config: JsCircuitConfig, iss: string, pkB64: string): string
-/** Raw proof request passed from JavaScript to `prove`. */
+/** Per-credential prove inputs (one entry per JWT in the batch). */
+export interface JsProveCredential {
+  /** JWT compact serialization (`header.payload.signature`). */
+  jwt: string
+  /** Base64 of the 256-byte RSA-2048 modulus of the issuer key. */
+  rsaModulusB64: string
+  /** Merkle authentication path siblings as hex/decimal field-element strings. */
+  merklePath: Array<string>
+  /** Merkle leaf index for this credential. */
+  merkleLeafIdx: number
+}
+/**
+ * Inputs for `prove`.
+ *
+ * Replaces the legacy flat per-credential vectors with the post-migration
+ * shape: caller points us at the manifest-validated CRS bundle directory,
+ * then supplies the `ProveRequest` fields. Hanchor and audience-list hashes
+ * are computed internally.
+ */
 export interface JsProofRequest {
-  /** Path to the proving key file on disk. */
-  pkPath: string
-  /** JWT tokens — one per credential (must have exactly `k` entries). */
-  jwts: Array<string>
-  /** RSA public key moduli in Base64 — one per JWT. */
-  pkOps: Array<string>
-  /** Merkle authentication paths — one Vec per JWT. */
-  merklePaths: Array<Array<string>>
-  /** Merkle leaf indices — one per JWT. */
-  leafIndices: Array<number>
-  /** Merkle root as a hex/decimal field-element string. */
-  root: string
-  /** Anchor polynomial evaluations (without hanchor). */
-  anchorEvals: Array<string>
-  /** Combined anchor hash. */
-  hanchor: string
-  /** Signed UserOperation hash. */
-  hSignUserOp: string
-  /** Random blinding value. */
+  /** Directory containing `manifest.json` + the CRS bundle. */
+  manifestDir: string
+  /** Randomness salt — BN254 Fr (hex/decimal). */
   random: string
-  /** Allowed audience hash values as hex/decimal field-element strings. */
-  audHashList: Array<string>
+  /** Hash of the signed user-op payload — BN254 Fr (hex/decimal). */
+  hSignUserOp: string
+  /** Anchor polynomial evaluations (length = `config.n - config.k + 1`). */
+  anchor: Array<string>
+  /** Issuer-key Merkle tree root — BN254 Fr (hex/decimal). */
+  merkleRoot: string
+  /** One entry per JWT credential; length must equal `config.k`. */
+  credentials: Array<JsProveCredential>
 }
 /** Output of `prove`: Solidity-compatible proof strings and split public inputs per JWT. */
 export interface JsProofOutput {
@@ -97,10 +105,217 @@ export interface JsProofOutput {
   partialRhsList: Array<string>
   /** jwt_exp per JWT (index 4) as decimal string */
   jwtExpList: Array<string>
+  /**
+   * Phase timing for benchmarking. Wall-clock, nanosecond-source via
+   * `std::time::Instant`.
+   */
+  timing: JsProveTiming
+}
+/** Phase-level wall-clock breakdown of a single `prove()` call. */
+export interface JsProveTiming {
+  /**
+   * Wall-clock milliseconds spent reading, hash-checking, and
+   * deserializing the manifest CRS bundle from `manifestDir`.
+   */
+  loadMs: number
+  /**
+   * Wall-clock milliseconds spent in witness generation inside
+   * `witness_gen.wasm`.
+   */
+  synthesizeMs: number
+  /**
+   * Wall-clock milliseconds spent in the selected proof-generation
+   * backend across all `k` credentials.
+   */
+  proveMs: number
+  /**
+   * Wall-clock milliseconds for the full native `prove()` call,
+   * including load, request conversion, synthesis, proof generation,
+   * and output DTO construction.
+   */
+  totalMs: number
+  /**
+   * `"wasm"` when the release-provided witness generator drove witness
+   * synthesis.
+   */
+  backend: string
+  /** Proof execution mode used for the returned proof set. */
+  proofMode: string
+  /** Peak process RSS observed during the proof phase, in MiB. */
+  proofPeakRssMb?: number
+  /** Peak process RSS increase over the proof phase baseline, in MiB. */
+  proofPeakRssDeltaMb?: number
+  /** Wall-clock milliseconds spent instantiating the cached witness WASM module. */
+  wasmInstantiateMs?: number
+  /** Wall-clock milliseconds spent inside the witness WASM call. */
+  wasmCallMs?: number
+  /** Wall-clock milliseconds spent deserializing the witness bundles. */
+  witnessDeserializeMs?: number
+  /** Optional sequential-vs-parallel proof comparison for benchmark runs. */
+  parallelComparison?: JsParallelProveComparison
+}
+/** Sequential-vs-parallel proof timing and peak RSS comparison. */
+export interface JsParallelProveComparison {
+  /** Sequential proof wall-clock milliseconds. */
+  sequentialProveMs: number
+  /** Sequential proof peak process RSS in MiB. */
+  sequentialPeakRssMb?: number
+  /** Sequential proof peak process RSS increase in MiB. */
+  sequentialPeakRssDeltaMb?: number
+  /** Parallel proof wall-clock milliseconds. */
+  parallelProveMs: number
+  /** Parallel proof peak process RSS in MiB. */
+  parallelPeakRssMb?: number
+  /** Parallel proof peak process RSS increase in MiB. */
+  parallelPeakRssDeltaMb?: number
+  /** `parallel_prove_ms - sequential_prove_ms`. */
+  proveMsDelta: number
+  /** `parallel_peak_rss_mb - sequential_peak_rss_mb`, when both are available. */
+  peakRssMbDelta?: number
+}
+/** Detail timing for a cold `prepareProver(manifestDir)` load. */
+export interface JsPrepareProverTiming {
+  /** Total wall-clock milliseconds spent preparing the cached prover. */
+  totalMs: number
+  /** Time spent reading and parsing `manifest.json`. */
+  manifestMs: number
+  /** Total time spent in `ArtifactSet` loading. */
+  artifactLoadMs: number
+  /** Time spent loading `circuit.ar1cs`. */
+  ar1CsMs: number
+  /** Time spent loading `pk.bin`. */
+  pkMs: number
+  /** Time spent loading `vk.bin`. */
+  vkMs: number
+  /** Time spent loading `pvk.bin`. */
+  pvkMs: number
+  /** Time spent loading `config.json`. */
+  circuitConfigMs: number
+  /** Time spent checking the optional EVM verifier artifact. */
+  evmVerifierMs: number
+  /** Time spent loading `witness_gen.wasm`. */
+  witnessGenWasmMs: number
+  /** Time spent moving artifacts into the cached prepared proving state. */
+  preparedMs: number
+  /** Time spent compiling `witness_gen.wasm` into a cached wasmtime module. */
+  wasmCompileMs: number
+}
+/** Result of `prepareProver(manifestDir)`. */
+export interface JsPrepareProverResult {
+  /**
+   * Wall-clock milliseconds spent loading and preparing the prover.
+   * `0` when the manifest directory was already cached in this process.
+   */
+  loadMs: number
+  /** `true` when the prepared prover came from the process-local cache. */
+  cached: boolean
+  /** Detail timing when this call performed a cold load. */
+  timing?: JsPrepareProverTiming
 }
 /**
- * Generate Groth16 proofs from raw user inputs.
+ * Preload and cache the manifest-backed proving artifacts for later
+ * `prove()` calls in the same Node.js process.
+ */
+export declare function prepareProver(manifestDir: string): JsPrepareProverResult
+/**
+ * Generate Groth16 proofs.
  *
- * Returns serialized proof bytes and hex-encoded public inputs for each JWT token.
+ * Loads the manifest-validated CRS bundle from `request.manifest_dir`,
+ * runs witness synthesis inside the release-provided `witness_gen.wasm`,
+ * then runs the circuit-agnostic
+ * `ark_ar1cs::prove_with_mode(..., VerifyAfter)` against the bundled proving key.
  */
 export declare function prove(config: JsCircuitConfig, request: JsProofRequest): JsProofOutput
+/** Inputs for `loadRelease`. */
+export interface JsLoadReleaseOpts {
+  /**
+   * Absolute path to the directory containing zkap-circuit's flat
+   * prefixed release bundle (e.g. `1-of-1-pk.bin`, `1-of-1-manifest.json`,
+   * `1-of-1-SHA256SUMS`, `witness_gen.wasm`, …).
+   */
+  releaseDir: string
+  /** Shape of the release to stage. Must be `"1-of-1"` or `"3-of-3"`. */
+  shape: string
+  /**
+   * Optional expected `manifest.build.circuit_commit`.
+   *
+   * Defaults to the zkap-circuit revision this SDK was built against. Full
+   * 40-character commits and unambiguous prefixes of at least 7 characters
+   * are accepted.
+   */
+  expectedCircuitCommit?: string
+  /**
+   * Skip `manifest.build.circuit_commit` validation. Intended only for
+   * local development bundles that are known to be compatible.
+   */
+  allowCircuitCommitMismatch?: boolean
+}
+/**
+ * Result of `loadRelease`.
+ *
+ * The richer return shape lets `node-harness` learn `circuit_id`,
+ * `public_input_names`, and `setup_provenance` directly from
+ * `manifestJson` without re-opening the on-disk manifest.
+ */
+export interface JsLoadReleaseResult {
+  /**
+   * Absolute path to the unprefixed staged bundle directory. Pass
+   * this as `manifest_dir` to `prove()` / `verify()`.
+   */
+  stagedDir: string
+  /**
+   * Raw per-shape manifest.json text (already SHA-verified by the
+   * loader). Parse with `JSON.parse` on the JS side.
+   */
+  manifestJson: string
+  /** Echoed shape post-validation (`"1-of-1"` / `"3-of-3"`). */
+  shape: string
+  /**
+   * First 16 hex of SHA256 of the per-shape `<shape>-SHA256SUMS`
+   * (cache key). Stable across re-bakes of the same release.
+   */
+  releaseSha: string
+}
+/**
+ * Convert zkap-circuit's flat prefixed release bundle into a
+ * SHA-verified unprefixed staged directory under `os.tmpdir()`.
+ *
+ * Idempotent: a second call with the same `{ releaseDir, shape }`
+ * returns the same `stagedDir` (sub-second warm-cache re-verify).
+ * Concurrent calls coordinate via an `fs2` exclusive advisory lock.
+ *
+ * Errors surface as `napi::Error` whose message starts with
+ * `loadRelease:` followed by the underlying `ReleaseError` display
+ * (e.g. `loadRelease: release artifact pk.bin: expected <a>, got <b>`).
+ */
+export declare function loadRelease(opts: JsLoadReleaseOpts): JsLoadReleaseResult
+/** Per-proof verification verdict returned by `verify`. */
+export interface JsVerifyOutput {
+  /**
+   * One boolean per proof in `proofOutput.proofs`, in order:
+   * `true` if `Groth16::verify_proof(&pvk, proofs[i], pub_inputs[i])`
+   * returned `Ok(true)`, otherwise `false` (verification rejected,
+   * or pairing returned a downstream error which we treat as
+   * `false` — the proof did not verify against this verifier).
+   */
+  results: Array<boolean>
+  /** Aggregate convenience flag: `results.iter().all(|x| *x)`. */
+  allValid: boolean
+}
+/**
+ * Verify a batch of proofs produced by `prove` against the
+ * `PreparedVerifyingKey` registered in `manifestDir`'s
+ * `manifest.json` (`pvk.bin`). The function does no synthesize work;
+ * it parses the Solidity-shaped `proofs[i]` (8 hex field strings,
+ * layout `[ax, ay, bx_c1, bx_c0, by_c1, by_c0, cx, cy]`), recomposes
+ * the canonical 8-element public-input vector
+ * `[hanchor, h_a, root, h_sign_user_op, jwt_exp[i], partial_rhs[i],
+ *   lhs, h_aud_list]` from `proofOutput`, and runs
+ * `ark_groth16::Groth16::<Bn254>::verify_proof` against `pvk` for
+ * every entry.
+ *
+ * `manifestDir` is the same path used by `prove`. The manifest
+ * SHA gate (`ArtifactSet::load`) is re-applied so a bundle that
+ * was tampered with after prove() still fails here.
+ */
+export declare function verify(manifestDir: string, proofOutput: JsProofOutput): JsVerifyOutput

@@ -2,6 +2,11 @@
 
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
+use zkap_service::{
+    generate_anchor as service_generate_anchor, generate_audience_hashes, generate_issuer_key_hash,
+    generate_poseidon_hash, AnchorSecret, AudienceHashRequest, CircuitConfig,
+    GenerateAnchorRequest, HashRequest, IssuerKeyHashRequest,
+};
 
 fn js_err(e: impl std::fmt::Display) -> JsValue {
     JsValue::from_str(&e.to_string())
@@ -54,9 +59,8 @@ struct AudHashResult {
     h_aud_list: String,
 }
 
-fn to_native_config(c: JsCircuitConfig) -> zkap_service::CircuitConfig {
-    use zkap_service::constants::RawCircuitConfig;
-    RawCircuitConfig {
+fn to_native_config(c: JsCircuitConfig) -> CircuitConfig {
+    CircuitConfig {
         max_jwt_b64_len: c.max_jwt_b64_len,
         max_payload_b64_len: c.max_payload_b64_len,
         max_aud_len: c.max_aud_len,
@@ -71,7 +75,6 @@ fn to_native_config(c: JsCircuitConfig) -> zkap_service::CircuitConfig {
         claims: c.claims,
         forbidden_string: c.forbidden_string,
     }
-    .into()
 }
 
 // ---------------------------------------------------------------------------
@@ -83,7 +86,11 @@ fn to_native_config(c: JsCircuitConfig) -> zkap_service::CircuitConfig {
 /// Returns the result as a 0x-prefixed hex string.
 #[wasm_bindgen(js_name = generateHash)]
 pub fn generate_hash(messages: Vec<String>) -> Result<String, JsValue> {
-    zkap_service::generate_hash(messages).map_err(js_err)
+    let response = generate_poseidon_hash(HashRequest {
+        field_elements: messages,
+    })
+    .map_err(js_err)?;
+    Ok(response.hash)
 }
 
 // ---------------------------------------------------------------------------
@@ -98,24 +105,28 @@ pub fn generate_hash(messages: Vec<String>) -> Result<String, JsValue> {
 /// Returns `{ evaluations: string[] }`.
 #[wasm_bindgen(js_name = generateAnchor)]
 pub fn generate_anchor(config: JsValue, secrets: JsValue) -> Result<JsValue, JsValue> {
-    let config: JsCircuitConfig =
-        serde_wasm_bindgen::from_value(config).map_err(js_err)?;
-    let secrets: Vec<JsSecret> =
-        serde_wasm_bindgen::from_value(secrets).map_err(js_err)?;
+    let config: JsCircuitConfig = serde_wasm_bindgen::from_value(config).map_err(js_err)?;
+    let secrets: Vec<JsSecret> = serde_wasm_bindgen::from_value(secrets).map_err(js_err)?;
 
     let params = to_native_config(config);
-    let native_secrets: Vec<zkap_service::Secret> = secrets
+    let native_secrets: Vec<AnchorSecret> = secrets
         .into_iter()
-        .map(|s| zkap_service::Secret {
-            sub: s.sub,
-            iss: s.iss,
-            aud: s.aud,
+        .map(|s| AnchorSecret {
+            subject: s.sub,
+            issuer: s.iss,
+            audience: s.aud,
         })
         .collect();
 
-    let anchor = zkap_service::generate_anchor(&params, native_secrets).map_err(js_err)?;
+    let anchor = service_generate_anchor(
+        &params,
+        GenerateAnchorRequest {
+            secrets: native_secrets,
+        },
+    )
+    .map_err(js_err)?;
     let result = AnchorResult {
-        evaluations: anchor.anchor,
+        evaluations: anchor.anchor_evaluations,
     };
     serde_wasm_bindgen::to_value(&result).map_err(js_err)
 }
@@ -132,14 +143,19 @@ pub fn generate_anchor(config: JsValue, secrets: JsValue) -> Result<JsValue, JsV
 /// Returns `{ audHashes: string[], hAudList: string }`.
 #[wasm_bindgen(js_name = generateAudHash)]
 pub fn generate_aud_hash(config: JsValue, aud_list: Vec<String>) -> Result<JsValue, JsValue> {
-    let config: JsCircuitConfig =
-        serde_wasm_bindgen::from_value(config).map_err(js_err)?;
+    let config: JsCircuitConfig = serde_wasm_bindgen::from_value(config).map_err(js_err)?;
     let params = to_native_config(config);
 
-    let result_core = zkap_service::generate_aud_hash(&params, aud_list).map_err(js_err)?;
+    let result_core = generate_audience_hashes(
+        &params,
+        AudienceHashRequest {
+            audiences: aud_list,
+        },
+    )
+    .map_err(js_err)?;
     let result = AudHashResult {
-        aud_hashes: result_core.individual,
-        h_aud_list: result_core.combined,
+        aud_hashes: result_core.audience_hashes,
+        h_aud_list: result_core.audience_list_hash,
     };
     serde_wasm_bindgen::to_value(&result).map_err(js_err)
 }
@@ -154,16 +170,19 @@ pub fn generate_aud_hash(config: JsValue, aud_list: Vec<String>) -> Result<JsVal
 ///
 /// Returns the leaf field element as a 0x-prefixed hex string.
 #[wasm_bindgen(js_name = generateLeafHash)]
-pub fn generate_leaf_hash(
-    config: JsValue,
-    iss: String,
-    pk_b64: String,
-) -> Result<String, JsValue> {
-    let config: JsCircuitConfig =
-        serde_wasm_bindgen::from_value(config).map_err(js_err)?;
+pub fn generate_leaf_hash(config: JsValue, iss: String, pk_b64: String) -> Result<String, JsValue> {
+    let config: JsCircuitConfig = serde_wasm_bindgen::from_value(config).map_err(js_err)?;
     let params = to_native_config(config);
 
-    zkap_service::generate_leaf_hash(&params, &iss, &pk_b64).map_err(js_err)
+    let response = generate_issuer_key_hash(
+        &params,
+        IssuerKeyHashRequest {
+            issuer: iss,
+            rsa_modulus_b64: pk_b64,
+        },
+    )
+    .map_err(js_err)?;
+    Ok(response.hash)
 }
 
 // ---------------------------------------------------------------------------

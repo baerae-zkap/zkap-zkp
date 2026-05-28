@@ -1,6 +1,6 @@
 {
   "name": "@baerae/zkap-zkp-node-darwin-arm64",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "macOS arm64 binary for @baerae/zkap-zkp-node",
   "os": [
     "darwin"
@@ -12,6 +12,9 @@
   "files": [
     "index.darwin-arm64.node"
   ],
+  "scripts": {
+    "prepack": "node ../../scripts/verify-node-platform-packages.mjs"
+  },
   "license": "MIT OR Apache-2.0",
   "publishConfig": {
     "registry": "https://registry.npmjs.org/",

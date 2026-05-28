@@ -7,10 +7,40 @@ edition = "2021"
 crate-type = ["staticlib", "cdylib"]
 
 [dependencies]
-zkap-service = { workspace = true, features = ["proof", "use-optimized"] }
+zkap-service = { workspace = true, features = ["host-primitives", "manifest", "artifact-loader"] }
 uniffi = { version = "0.31", features = ["cli"] }
 thiserror = "1"
 mimalloc = { workspace = true }
+base64 = "0.22"
+sha2 = "0.10"
+
+# Phase 4 — wasm-runtime + circuit-agnostic prove deps.
+#
+# Mobile witness generation uses the release `witness_gen.wasm` artifact
+# loaded from the manifest (see [[zkap-circuit]] crates/witness-gen-wasm).
+# Non-iOS targets use wasmtime's Cranelift-backed runtime for throughput.
+# iOS production witness synthesis is handled by the React Native package's
+# WKWebView runner, then proof generation resumes here through
+# `prove_from_witness_bundles`. Wasmi is kept behind a diagnostic feature only.
+# Native Groth16 proving delegates directly to
+# `ark_ar1cs::prove_with_mode(..., VerifyAfter)` using `ArtifactSet`'s
+# prepared matrices.
+zkap-zkp-prover = { path = "../prover" }
+ark-ar1cs = { workspace = true }
+ark-serialize = "0.6"
+ark-std = "0.6"
+serde_json = "1"
+
+[target.'cfg(any(target_os = "ios", target_os = "tvos", target_os = "watchos", target_os = "visionos"))'.dependencies]
+wasmi = { version = "0.38", default-features = false, features = ["std"], optional = true }
+
+[target.'cfg(not(any(target_os = "ios", target_os = "tvos", target_os = "watchos", target_os = "visionos")))'.dependencies]
+wasmtime = { version = "26.0", default-features = false, features = ["cranelift", "runtime"], optional = true }
+
+[features]
+default = ["wasm-witness"]
+wasm-witness = ["dep:wasmtime"]
+wasmi-diagnostic = ["dep:wasmi"]
 
 [[bin]]
 name = "uniffi-bindgen"

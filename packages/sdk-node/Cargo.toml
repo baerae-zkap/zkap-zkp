@@ -8,20 +8,38 @@ license = "MIT OR Apache-2.0"
 crate-type = ["cdylib"]
 
 [dependencies]
-zkap-service = { workspace = true }
+zkap-service = { workspace = true, features = ["host-primitives", "manifest", "artifact-loader"] }
 napi = { workspace = true }
 napi-derive = { workspace = true }
 serde_json = "1"
 serde = { version = "1", features = ["derive"] }
 hex = "0.4"
-ark-ff = "0.5"
-ark-bn254 = "0.5"
-ark-groth16 = "0.5"
-ark-serialize = "0.5"
+libc = "0.2"
+
+# Phase 4 — wasm-runtime + circuit-agnostic prove deps.
+#
+# wasmtime hosts the required release `witness_gen.wasm` artifact loaded
+# from the manifest. Native Groth16 proving delegates directly to
+# `ark_ar1cs::prove_with_mode(..., VerifyAfter)` using `ArtifactSet`'s
+# prepared matrices. ark-* are pinned at 0.6 to match the new zkap-service
+# and the WitnessBundle CanonicalSerialize wire format.
+wasmtime = { version = "26.0", default-features = false, features = ["cranelift", "runtime"] }
+zkap-zkp-prover = { path = "../../crates/prover" }
+ark-ar1cs = { workspace = true }
+ark-ff = "0.6"
+ark-bn254 = "0.6"
+ark-groth16 = "0.6"
+ark-serialize = "0.6"
+ark-std = "0.6"
+rayon = { workspace = true }
 
 [build-dependencies]
 napi-build = "2"
 
 [features]
+# Phase 4 PoC — the new zkap-service ar1cs migration removed the
+# `proof` feature gate (heavy ark-* deps are now unconditional).
+# Keep the feature name as a no-op alias so external callers that
+# still pass `--features proof` keep working.
 default = ["proof"]
-proof = ["zkap-service/proof"]
+proof = []
