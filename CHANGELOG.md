@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **`downloadRelease({ baseUrl, shape, ... })`** (`@baerae/zkap-zkp`): downloads a zkap-circuit flat release bundle from static hosting and stages it as a local `manifestDir` for Node.js and React Native. Supports `expectedReleaseSha` pinning, cache reuse, progress callbacks, and test/custom networking through `fetch`.
+- **`loadCircuitConfig(manifestDir)` / `normalizeCircuitConfig(input)`**: reads release `config.json`, verifies it against `manifest.json`, and returns the public facade camelCase `CircuitConfig`; `normalizeCircuitConfig` is available in Node.js, React Native, and WASM.
+
+## [0.1.5] - 2026-05-20
+
+### Added
+
+- **`loadRelease({ releaseDir, shape })`** (`sdk-node`, re-exported from `@baerae/zkap-zkp`): ingests zkap-circuit's flat prefixed release bundle (e.g. `1-of-1-pk.bin`, `1-of-1-manifest.json`, `1-of-1-SHA256SUMS`) and produces a SHA-verified unprefixed staged directory under `os.tmpdir()/zkap-release-<sha>-<shape>/`. Output: `{ stagedDir, manifestJson, shape, releaseSha }`. Idempotent (warm-cache re-call < 2s), concurrent-safe (`fs2` exclusive lock + atomic rename). Pass `stagedDir` as `request.manifestDir` to `prove()` / `verify()`. Non-breaking — existing `manifestDir` API unchanged.
+
+### Fixed
+
+- **`verify` is now re-exported through `@baerae/zkap-zkp` facade.** Previously defined in `@baerae/zkap-zkp-node`'s `index.d.ts` but never re-exported through the public facade; this blocked consumers of the ADR-003 facade-only convention (e.g. `zkap-zkp-testbed/node-harness/`) from calling `verify()` without violating the lint rule.
+
+### Notes
+
+- **`sdk-wasm` + `sdk-react-native` version-only bump.** No source or native artifact changes in these packages. Version moved from `0.1.4` to `0.1.5` to preserve the synchronized-version invariant enforced by `scripts/check-release-packages.mjs`.
+- **Host limitation: `node-harness` `file:` install supports darwin-arm64 only in this iteration.** The `overrides` block in `zkap-zkp-testbed/node-harness/package.json` pins the napi platform package for darwin-arm64; other host arches (darwin-x64, linux-x64-gnu, linux-x64-musl) require additional overrides — tracked as a follow-up.
+
 ## [0.1.2] - 2026-04-10
 
 ### Breaking Changes

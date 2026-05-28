@@ -6,13 +6,12 @@ Zero-Knowledge Proof SDK for Node.js, WebAssembly, and React Native, based on Gr
 
 | Package | Platform | Install |
 |---------|----------|---------|
-| [`@baerae/zkap-zkp`](./packages/sdk) | Node.js | `npm install @baerae/zkap-zkp` |
-| [`@baerae/zkap-zkp-wasm`](./packages/sdk-wasm) | Browser / WebAssembly | `npm install @baerae/zkap-zkp-wasm` |
-| [`@baerae/zkap-zkp-react-native`](./packages/sdk-react-native) | React Native (Expo) | `npx expo install @baerae/zkap-zkp-react-native` |
+| [`@baerae/zkap-zkp`](./packages/sdk) | Node.js / Browser WebAssembly / React Native | `npm install @baerae/zkap-zkp` |
 
-`@baerae/zkap-zkp` resolves its native bindings through internal npm subpackages:
-`@baerae/zkap-zkp-node` plus platform-specific optional dependencies. Most users should
-ignore those internal packages and install the public entrypoints above.
+`@baerae/zkap-zkp` resolves runtime implementations through internal packages:
+`@baerae/zkap-zkp-node`, `@baerae/zkap-zkp-wasm`, `@baerae/zkap-zkp-react-native`,
+and platform-specific optional native binary packages. Most users should install
+only `@baerae/zkap-zkp`.
 
 ## Capability Matrix
 
@@ -22,10 +21,12 @@ Functions actively used in production integrations.
 
 | API | Node.js | WASM | React Native | Notes |
 |-----|---------|------|--------------|-------|
-| `generateHash` | sync | sync | async | Poseidon hash |
-| `generateAudHash` | sync | sync | async | Audience hash |
-| `generateAnchor` | sync | sync | async | Threshold anchor |
-| `prove` | sync | -- | async | Requires ~400 MB proving key |
+| `generateHash` | async | async | async | Poseidon hash |
+| `generateAudHash` | async | async | async | Audience hash |
+| `generateAnchor` | async | async | async | Threshold anchor |
+| `prove` | async | -- | async | Requires CRS/proving bundle |
+| `downloadRelease` | async | -- | async | Downloads/stages a release bundle into `manifestDir` |
+| `loadCircuitConfig` | async | -- | async | Reads `config.json` as facade camelCase config |
 
 ### Utility API
 
@@ -33,75 +34,90 @@ Available for custom integrations. Not used in current production deployments.
 
 | API | Node.js | WASM | React Native | Notes |
 |-----|---------|------|--------------|-------|
-| `generateLeafHash` | sync | sync | async | Merkle leaf hash |
+| `generateLeafHash` | async | async | async | Merkle leaf hash |
+| `normalizeCircuitConfig` | sync | sync | sync | Converts release `config.json` snake_case to facade camelCase |
 
 > `prove` is not available in WASM due to memory constraints. Use Node.js (server-side) or React Native (on-device).
 
-> `setup` and `verify` are not included in the public SDK. Trusted setup is a protocol management operation; verification is performed on-chain or server-side.
+> Trusted setup is not included in the public facade. `verify` is available in Node.js and throws `UnsupportedPlatformError` in WASM and React Native.
 
-## Quick Start -- Node.js
+## Quick Start
 
 ```bash
 npm install @baerae/zkap-zkp
 ```
 
 ```typescript
-import { generateHash, generateAudHash, generateAnchor } from '@baerae/zkap-zkp';
+import { initZkap, generateHash, generateAudHash, generateAnchor } from '@baerae/zkap-zkp';
+
+await initZkap(); // optional no-op on Node/RN, preloads WASM in browsers
 
 // Hash functions work immediately (no setup required)
-const hash = generateHash(['0x1', '0x2']);
+const hash = await generateHash(['0x1', '0x2']);
 
 // Audience hash
-const audResult = generateAudHash(config, ['my-audience']);
+const audResult = await generateAudHash(config, ['my-audience']);
 
 // Threshold anchor (requires exactly n secrets)
-const anchor = generateAnchor(config, secrets);
+const anchor = await generateAnchor(config, secrets);
 ```
 
-For proving, a proving key file must be available on disk:
+For proving, download or stage a manifest-backed CRS bundle first. The package
+provides `downloadRelease()` for a flat zkap-circuit release directory served
+over HTTPS/S3-compatible static hosting:
 
 ```typescript
-import { prove } from '@baerae/zkap-zkp';
+import { downloadRelease, loadCircuitConfig, prove } from '@baerae/zkap-zkp';
 
-const result = prove(config, { pkPath: '/path/to/pk.bin', ...request });
+const release = await downloadRelease({
+  baseUrl: 'https://static.example.com/zkap/releases/v0.1.5',
+  shape: '3-of-3',
+  // Pin this in production after reading the releaseSha from a trusted channel.
+  expectedReleaseSha: '50aaaa8fe35fc261',
+});
+const config = await loadCircuitConfig(release.stagedDir);
+const result = await prove(config, { manifestDir: release.stagedDir, ...request });
 ```
 
 ## Quick Start -- Browser (WebAssembly)
 
-```bash
-npm install @baerae/zkap-zkp-wasm
-```
-
 ```typescript
-import init, { generateHash, generateAnchor, generateAudHash } from '@baerae/zkap-zkp-wasm';
+import { initZkap, generateHash, generateAnchor, generateAudHash } from '@baerae/zkap-zkp';
 
-await init(); // Initialize WASM module
-const hash = generateHash(['0x1', '0x2']);
+await initZkap(); // Initialize WASM module
+const hash = await generateHash(['0x1', '0x2']);
 ```
 
 ## Quick Start -- React Native (Expo)
 
 ```bash
-npx expo install @baerae/zkap-zkp-react-native
+npx expo install @baerae/zkap-zkp
 ```
 
 ```typescript
-import { generateHash, generateAnchor, prove } from '@baerae/zkap-zkp-react-native';
+import { downloadRelease, generateHash, generateAnchor, loadCircuitConfig, prove } from '@baerae/zkap-zkp';
 
 // Hash functions (no setup required)
 const hash = await generateHash(['0x1', '0x2']);
 
-// Proving (requires a proving key file on disk)
-const result = await prove(config, { pk_path: '/path/to/pk.bin', ...request });
+// Proving (downloads/caches a CRS/proving bundle on disk)
+const release = await downloadRelease({
+  baseUrl: 'https://static.example.com/zkap/releases/v0.1.5',
+  shape: '3-of-3',
+});
+const config = await loadCircuitConfig(release.stagedDir);
+const result = await prove(config, { manifestDir: release.stagedDir, ...request });
 ```
 
-> Requires Expo New Architecture (`expo-modules-core >= 1.12.0`). Native binaries (iOS XCFramework, Android `.so`) are bundled in the package.
+> Requires Expo New Architecture (`expo-modules-core >= 1.12.0`). Native binaries (iOS XCFramework, Android `.so`) are bundled in the package. `downloadRelease()` on React Native uses `expo-file-system`; install it with `npx expo install expo-file-system` if your app does not already include it.
 
 See the [React Native Guide](docs/REACT_NATIVE_GUIDE.md) for full setup instructions.
 
 ## Naming Conventions
 
-Node.js and WASM use **camelCase** config fields. React Native uses **snake_case**.
+The public `@baerae/zkap-zkp` facade uses **camelCase** config fields in every
+runtime. The legacy React Native package still accepts its historical snake_case
+shape.
 
 | Node.js / WASM | React Native |
 |-----------------|--------------|
@@ -112,16 +128,38 @@ Node.js and WASM use **camelCase** config fields. React Native uses **snake_case
 
 See the [API Reference](docs/API_REFERENCE.md) for full type definitions.
 
-## Proving Key
+## Proving Bundle
 
-The proving key (~400 MB) is **not bundled in npm**. Users must download it separately (e.g., from S3) and provide the file path to `prove()`.
+The CRS/proving bundle is **not bundled in npm**. Large proving artifacts should
+be served separately (for example from S3 or a CDN), then converted to the
+`manifestDir` layout consumed by `prove()`.
+
+Use `downloadRelease({ baseUrl, shape })` when the remote directory uses the
+zkap-circuit flat release layout:
+
+```text
+<baseUrl>/
+  3-of-3-manifest.json
+  3-of-3-circuit.ar1cs
+  3-of-3-pk.bin
+  3-of-3-vk.bin
+  3-of-3-pvk.bin
+  3-of-3-Groth16Verifier.sol
+  3-of-3-config.json
+  3-of-3-SHA256SUMS
+  witness_gen.wasm
+```
+
+`downloadRelease()` returns `{ stagedDir, manifestJson, shape, releaseSha }`.
+Pass `stagedDir` as `manifestDir`. In production, pin `expectedReleaseSha` to
+the first 16 hex chars of SHA256 of `<shape>-SHA256SUMS` from a trusted release
+channel.
 
 - **WASM:** `prove()` is not supported.
-
-## Examples
-
-- [`examples/node/`](./examples/node/) -- hash and proof usage with `@baerae/zkap-zkp`
-- [`examples/browser/`](./examples/browser/) -- WASM hash usage with Vite
+- **Browser/WASM:** `downloadRelease()` is not supported because browsers cannot
+  expose a native filesystem `manifestDir` to the prover.
+- **Node sync compatibility:** use `@baerae/zkap-zkp/node-sync` when a synchronous
+  Node-only API is required.
 
 ## Documentation
 
