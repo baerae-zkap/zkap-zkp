@@ -1,15 +1,15 @@
-# `@baerae/zkap-zkp-sdk-node`
+# `@baerae/zkap-zkp-node`
 
 Native Node.js bindings for zkap-zkp.
 
 Install:
 
 ```bash
-npm install @baerae/zkap-zkp-sdk-node
+npm install @baerae/zkap-zkp-node
 ```
 
 ```ts
-import { generateHash, loadRelease, prove } from '@baerae/zkap-zkp-sdk-node'
+import { generateHash, loadRelease, prove } from '@baerae/zkap-zkp-node'
 
 const hash = generateHash(['0x1', '0x2'])
 const release = loadRelease({ releaseDir: '/path/to/flat-release', shape: '3-of-3' })

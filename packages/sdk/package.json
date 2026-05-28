@@ -71,19 +71,19 @@
     "access": "public"
   },
   "peerDependencies": {
-    "@baerae/zkap-zkp-sdk-node": "0.1.5",
-    "@baerae/zkap-zkp-sdk-react-native": "0.1.5",
-    "@baerae/zkap-zkp-sdk-wasm": "0.1.5",
+    "@baerae/zkap-zkp-node": "0.1.5",
+    "@baerae/zkap-zkp-react-native": "0.1.5",
+    "@baerae/zkap-zkp-wasm": "0.1.5",
     "expo-file-system": ">=17"
   },
   "peerDependenciesMeta": {
-    "@baerae/zkap-zkp-sdk-node": {
+    "@baerae/zkap-zkp-node": {
       "optional": true
     },
-    "@baerae/zkap-zkp-sdk-react-native": {
+    "@baerae/zkap-zkp-react-native": {
       "optional": true
     },
-    "@baerae/zkap-zkp-sdk-wasm": {
+    "@baerae/zkap-zkp-wasm": {
       "optional": true
     },
     "expo-file-system": {

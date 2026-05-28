@@ -3,7 +3,7 @@ import initWasm, {
   generateAudHash as wasmGenerateAudHash,
   generateHash as wasmGenerateHash,
   generateLeafHash as wasmGenerateLeafHash,
-} from '@baerae/zkap-zkp-sdk-wasm';
+} from '@baerae/zkap-zkp-wasm';
 import { UnsupportedPlatformError } from './errors';
 import type {
   AnchorResult,

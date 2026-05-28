@@ -191,35 +191,35 @@ pub fn generate_leaf_hash(config: JsValue, iss: String, pk_b64: String) -> Resul
 
 /// `groth16Setup` is not available in WebAssembly.
 ///
-/// Use `@baerae/zkap-zkp-sdk-node` (Node.js) for trusted setup.
+/// Use `@baerae/zkap-zkp-node` (Node.js) for trusted setup.
 #[wasm_bindgen(js_name = groth16Setup)]
 pub fn groth16_setup() -> Result<JsValue, JsValue> {
     Err(JsValue::from_str(
         "[zkap/sdk-wasm] groth16Setup() is not supported in WebAssembly. \
-         Use @baerae/zkap-zkp-sdk-node (Node.js) for trusted setup.",
+         Use @baerae/zkap-zkp-node (Node.js) for trusted setup.",
     ))
 }
 
 /// `prove` is not available in WebAssembly.
 ///
-/// Use `@baerae/zkap-zkp-sdk-node` for server-side proving, or
-/// `@baerae/zkap-zkp-sdk-react-native` for on-device proving.
+/// Use `@baerae/zkap-zkp-node` for server-side proving, or
+/// `@baerae/zkap-zkp-react-native` for on-device proving.
 #[wasm_bindgen(js_name = prove)]
 pub fn prove() -> Result<JsValue, JsValue> {
     Err(JsValue::from_str(
         "[zkap/sdk-wasm] prove() is not supported in WebAssembly. \
-         Use @baerae/zkap-zkp-sdk-node (Node.js) for server-side proving, \
-         or @baerae/zkap-zkp-sdk-react-native for on-device proving.",
+         Use @baerae/zkap-zkp-node (Node.js) for server-side proving, \
+         or @baerae/zkap-zkp-react-native for on-device proving.",
     ))
 }
 
 /// `verify` is not available in WebAssembly.
 ///
-/// Use `@baerae/zkap-zkp-sdk-node` for server-side verification.
+/// Use `@baerae/zkap-zkp-node` for server-side verification.
 #[wasm_bindgen(js_name = verify)]
 pub fn verify() -> Result<JsValue, JsValue> {
     Err(JsValue::from_str(
         "[zkap/sdk-wasm] verify() is not supported in WebAssembly. \
-         Use @baerae/zkap-zkp-sdk-node (Node.js) for server-side verification.",
+         Use @baerae/zkap-zkp-node (Node.js) for server-side verification.",
     ))
 }

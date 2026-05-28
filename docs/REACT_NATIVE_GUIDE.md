@@ -1,6 +1,6 @@
 # React Native Guide
 
-Setup and usage guide for `@baerae/zkap-zkp-sdk-react-native` in React Native.
+Setup and usage guide for `@baerae/zkap-zkp-react-native` in React Native.
 
 ## Requirements
 
@@ -19,13 +19,13 @@ The package includes pre-built native binaries:
 ## Installation
 
 ```bash
-npx expo install @baerae/zkap-zkp-sdk-react-native
+npx expo install @baerae/zkap-zkp-react-native
 ```
 
 If your project does not use Expo, install the peer dependencies manually:
 
 ```bash
-npm install @baerae/zkap-zkp-sdk-react-native expo-modules-core
+npm install @baerae/zkap-zkp-react-native expo-modules-core
 ```
 
 The direct React Native package does not include release-download helpers. If
@@ -34,7 +34,7 @@ you use the `@baerae/zkap-zkp` compatibility facade for
 React Native runtime package and add Expo FileSystem:
 
 ```bash
-npx expo install @baerae/zkap-zkp @baerae/zkap-zkp-sdk-react-native expo-file-system
+npx expo install @baerae/zkap-zkp @baerae/zkap-zkp-react-native expo-file-system
 ```
 
 ### iOS Setup
@@ -50,7 +50,7 @@ No additional setup required. The native `.so` libraries are bundled in the pack
 ### Verify Installation
 
 ```typescript
-import { generateHash } from '@baerae/zkap-zkp-sdk-react-native';
+import { generateHash } from '@baerae/zkap-zkp-react-native';
 
 const hash = await generateHash(['0x1', '0x2']);
 console.log(hash); // '0x...'
@@ -83,7 +83,7 @@ The `@baerae/zkap-zkp` compatibility facade converts its camelCase config to
 this shape internally.
 
 ```typescript
-import type { CircuitConfig } from '@baerae/zkap-zkp-sdk-react-native';
+import type { CircuitConfig } from '@baerae/zkap-zkp-react-native';
 
 const config: CircuitConfig = {
   max_jwt_b64_len: 1024,
@@ -112,7 +112,7 @@ import {
   generateAudHash,
   generateLeafHash,
   generateAnchor,
-} from '@baerae/zkap-zkp-sdk-react-native';
+} from '@baerae/zkap-zkp-react-native';
 
 // Poseidon hash
 const hash = await generateHash(['0x1', '0x2', '0x3']);
@@ -146,7 +146,7 @@ is responsible for placing a validated bundle in app-accessible storage:
 3. Pass that directory as `manifest_dir` to `prove()`.
 
 ```typescript
-import { prove } from '@baerae/zkap-zkp-sdk-react-native';
+import { prove } from '@baerae/zkap-zkp-react-native';
 
 const result = await prove(config, {
   ...request,
@@ -158,7 +158,7 @@ If you want the SDK to download and stage a remote flat release directory, use
 the compatibility facade with this runtime package:
 
 ```bash
-npx expo install @baerae/zkap-zkp @baerae/zkap-zkp-sdk-react-native expo-file-system
+npx expo install @baerae/zkap-zkp @baerae/zkap-zkp-react-native expo-file-system
 ```
 
 ```typescript
@@ -186,7 +186,7 @@ directory as `manifest_dir`. The staged directory must contain
 `Groth16Verifier.sol`, and `witness_gen.wasm` from the same release.
 
 ```typescript
-import { prove } from '@baerae/zkap-zkp-sdk-react-native';
+import { prove } from '@baerae/zkap-zkp-react-native';
 
 const result = await prove(config, {
   manifest_dir: '/path/to/bundle',

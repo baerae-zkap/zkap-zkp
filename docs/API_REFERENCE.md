@@ -5,13 +5,13 @@ matching runtime package for your environment:
 
 ```bash
 # Node.js
-npm install @baerae/zkap-zkp @baerae/zkap-zkp-sdk-node
+npm install @baerae/zkap-zkp @baerae/zkap-zkp-node
 
 # Browser/WebAssembly
-npm install @baerae/zkap-zkp @baerae/zkap-zkp-sdk-wasm
+npm install @baerae/zkap-zkp @baerae/zkap-zkp-wasm
 
 # React Native
-npx expo install @baerae/zkap-zkp @baerae/zkap-zkp-sdk-react-native
+npx expo install @baerae/zkap-zkp @baerae/zkap-zkp-react-native
 ```
 
 Do not install `@baerae/zkap-zkp` by itself unless another dependency already
