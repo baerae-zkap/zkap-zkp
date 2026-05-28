@@ -1,0 +1,13 @@
+rust:
+  directory: ../../crates/uniffi-bindings
+  manifestPath: Cargo.toml
+android:
+  apiLevel: 28
+  targets:
+    - arm64-v8a
+    - x86_64
+ios:
+  targets:
+    - aarch64-apple-ios
+    - aarch64-apple-ios-sim
+    - x86_64-apple-ios
