@@ -30,9 +30,9 @@ jobs:
         run: |
           VERSION="${{ inputs.version }}"
           if [ "$VERSION" = "latest" ]; then
-            SPEC="@baerae/zkap-zkp-sdk-node"
+            SPEC="@baerae/zkap-zkp-node"
           else
-            SPEC="@baerae/zkap-zkp-sdk-node@$VERSION"
+            SPEC="@baerae/zkap-zkp-node@$VERSION"
           fi
           echo "value=$SPEC" >> "$GITHUB_OUTPUT"
 
@@ -44,7 +44,7 @@ jobs:
           npm init -y
           npm install "${{ steps.spec.outputs.value }}"
           node - <<'EOF'
-          const { generateHash } = require('@baerae/zkap-zkp-sdk-node')
+          const { generateHash } = require('@baerae/zkap-zkp-node')
           ;(async () => {
             const result = await generateHash(['1'])
             if (!/^0x[0-9a-f]{64}$/i.test(result)) {
@@ -65,7 +65,7 @@ jobs:
           npm init -y
           npm install "${{ steps.spec.outputs.value }}"
           node - <<'EOF'
-          const { generateHash } = require('@baerae/zkap-zkp-sdk-node')
+          const { generateHash } = require('@baerae/zkap-zkp-node')
           const result = generateHash(['1'])
           if (!/^0x[0-9a-f]{64}$/i.test(result)) {
             throw new Error(`unexpected hash output: ${result}`)
@@ -86,9 +86,9 @@ jobs:
         run: |
           VERSION="${{ inputs.version }}"
           if [ "$VERSION" = "latest" ]; then
-            SPEC="@baerae/zkap-zkp-sdk-node"
+            SPEC="@baerae/zkap-zkp-node"
           else
-            SPEC="@baerae/zkap-zkp-sdk-node@$VERSION"
+            SPEC="@baerae/zkap-zkp-node@$VERSION"
           fi
           echo "value=$SPEC" >> "$GITHUB_OUTPUT"
 
@@ -100,7 +100,7 @@ jobs:
           npm init -y
           npm install "${{ steps.spec.outputs.value }}"
           node - <<'EOF'
-          const { generateHash } = require('@baerae/zkap-zkp-sdk-node')
+          const { generateHash } = require('@baerae/zkap-zkp-node')
           ;(async () => {
             const result = await generateHash(['1'])
             if (!/^0x[0-9a-f]{64}$/i.test(result)) {

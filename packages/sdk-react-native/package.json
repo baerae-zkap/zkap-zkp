@@ -1,5 +1,5 @@
 {
-  "name": "@baerae/zkap-zkp-sdk-react-native",
+  "name": "@baerae/zkap-zkp-react-native",
   "version": "0.1.5",
   "description": "React Native SDK for zkap-zkp — on-device ZK proving with Groth16 (BN254) and Poseidon hash.",
   "main": "./src/index.ts",

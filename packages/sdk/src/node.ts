@@ -7,7 +7,7 @@ import {
   prepareProver as nativePrepareProver,
   prove as nativeProve,
   verify as nativeVerify,
-} from '@baerae/zkap-zkp-sdk-node';
+} from '@baerae/zkap-zkp-node';
 import type { JsProofOutput } from './types';
 import { createHash } from 'node:crypto';
 import { createReadStream, createWriteStream } from 'node:fs';

@@ -6,9 +6,9 @@ Zero-Knowledge Proof SDK for Node.js, WebAssembly, and React Native, based on Gr
 
 | Package | Platform | Install |
 |---------|----------|---------|
-| [`@baerae/zkap-zkp-sdk-node`](./packages/sdk-node) | Node.js | `npm install @baerae/zkap-zkp-sdk-node` |
-| [`@baerae/zkap-zkp-sdk-wasm`](./packages/sdk-wasm) | Browser WebAssembly | `npm install @baerae/zkap-zkp-sdk-wasm` |
-| [`@baerae/zkap-zkp-sdk-react-native`](./packages/sdk-react-native) | React Native | `npm install @baerae/zkap-zkp-sdk-react-native` |
+| [`@baerae/zkap-zkp-node`](./packages/sdk-node) | Node.js | `npm install @baerae/zkap-zkp-node` |
+| [`@baerae/zkap-zkp-wasm`](./packages/sdk-wasm) | Browser WebAssembly | `npm install @baerae/zkap-zkp-wasm` |
+| [`@baerae/zkap-zkp-react-native`](./packages/sdk-react-native) | React Native | `npm install @baerae/zkap-zkp-react-native` |
 | [`@baerae/zkap-zkp`](./packages/sdk) | Compatibility facade | `npm install @baerae/zkap-zkp <runtime package>` |
 
 Install the package for the runtime you actually run. The runtime-specific
@@ -21,13 +21,13 @@ Install exactly one matching runtime package beside it when you need the facade:
 
 ```bash
 # Node.js facade API
-npm install @baerae/zkap-zkp @baerae/zkap-zkp-sdk-node
+npm install @baerae/zkap-zkp @baerae/zkap-zkp-node
 
 # Browser/WebAssembly facade API
-npm install @baerae/zkap-zkp @baerae/zkap-zkp-sdk-wasm
+npm install @baerae/zkap-zkp @baerae/zkap-zkp-wasm
 
 # React Native facade API
-npx expo install @baerae/zkap-zkp @baerae/zkap-zkp-sdk-react-native
+npx expo install @baerae/zkap-zkp @baerae/zkap-zkp-react-native
 ```
 
 This package manager model is intentional: npm cannot reliably infer whether a
@@ -70,11 +70,11 @@ Available for custom integrations. Not used in current production deployments.
 ## Quick Start
 
 ```bash
-npm install @baerae/zkap-zkp-sdk-node
+npm install @baerae/zkap-zkp-node
 ```
 
 ```typescript
-import { generateHash, generateAudHash, generateAnchor } from '@baerae/zkap-zkp-sdk-node';
+import { generateHash, generateAudHash, generateAnchor } from '@baerae/zkap-zkp-node';
 
 const hash = generateHash(['0x1', '0x2']);
 
@@ -88,7 +88,7 @@ const anchor = generateAnchor(config, secrets);
 For proving, stage a manifest-backed CRS bundle first:
 
 ```typescript
-import { loadRelease, prove } from '@baerae/zkap-zkp-sdk-node';
+import { loadRelease, prove } from '@baerae/zkap-zkp-node';
 
 const release = loadRelease({
   releaseDir: '/path/to/flat-release',
@@ -100,11 +100,11 @@ const result = prove(config, { manifestDir: release.stagedDir, ...request });
 ## Quick Start -- Browser (WebAssembly)
 
 ```bash
-npm install @baerae/zkap-zkp-sdk-wasm
+npm install @baerae/zkap-zkp-wasm
 ```
 
 ```typescript
-import initZkap, { generateHash, generateAnchor, generateAudHash } from '@baerae/zkap-zkp-sdk-wasm';
+import initZkap, { generateHash, generateAnchor, generateAudHash } from '@baerae/zkap-zkp-wasm';
 
 await initZkap(); // Initialize WASM module
 const hash = generateHash(['0x1', '0x2']);
@@ -113,11 +113,11 @@ const hash = generateHash(['0x1', '0x2']);
 ## Quick Start -- React Native (Expo)
 
 ```bash
-npx expo install @baerae/zkap-zkp-sdk-react-native
+npx expo install @baerae/zkap-zkp-react-native
 ```
 
 ```typescript
-import { generateHash, generateAnchor, prove } from '@baerae/zkap-zkp-sdk-react-native';
+import { generateHash, generateAnchor, prove } from '@baerae/zkap-zkp-react-native';
 
 // Hash functions (no setup required)
 const hash = await generateHash(['0x1', '0x2']);
@@ -174,7 +174,7 @@ channel.
 - **WASM:** `prove()` is not supported.
 - **Browser/WASM:** `downloadRelease()` is not supported because browsers cannot
   expose a native filesystem `manifestDir` to the prover.
-- **Node sync compatibility:** the direct `@baerae/zkap-zkp-sdk-node` package is
+- **Node sync compatibility:** the direct `@baerae/zkap-zkp-node` package is
   synchronous. The compatibility facade also exposes `@baerae/zkap-zkp/node-sync`
   for a synchronous Node-only API.
 

@@ -1,15 +1,15 @@
-# `@baerae/zkap-zkp-sdk-wasm`
+# `@baerae/zkap-zkp-wasm`
 
 WebAssembly bindings for zkap-zkp.
 
 Install:
 
 ```bash
-npm install @baerae/zkap-zkp-sdk-wasm
+npm install @baerae/zkap-zkp-wasm
 ```
 
 ```ts
-import initZkap, { generateHash, generateAnchor } from '@baerae/zkap-zkp-sdk-wasm'
+import initZkap, { generateHash, generateAnchor } from '@baerae/zkap-zkp-wasm'
 
 await initZkap()
 const hash = generateHash(['0x1', '0x2'])

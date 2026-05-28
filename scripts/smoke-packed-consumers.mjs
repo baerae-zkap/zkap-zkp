@@ -24,21 +24,21 @@ mkdirSync(packDir, { recursive: true })
 const PLATFORM_PACKAGES = [
   {
     dir: 'platform-packages/node-darwin-x64',
-    name: '@baerae/zkap-zkp-sdk-node-darwin-x64',
+    name: '@baerae/zkap-zkp-node-darwin-x64',
     binary: 'index.darwin-x64.node',
     os: 'darwin',
     cpu: 'x64',
   },
   {
     dir: 'platform-packages/node-darwin-arm64',
-    name: '@baerae/zkap-zkp-sdk-node-darwin-arm64',
+    name: '@baerae/zkap-zkp-node-darwin-arm64',
     binary: 'index.darwin-arm64.node',
     os: 'darwin',
     cpu: 'arm64',
   },
   {
     dir: 'platform-packages/node-linux-x64-gnu',
-    name: '@baerae/zkap-zkp-sdk-node-linux-x64-gnu',
+    name: '@baerae/zkap-zkp-node-linux-x64-gnu',
     binary: 'index.linux-x64-gnu.node',
     os: 'linux',
     cpu: 'x64',
@@ -46,7 +46,7 @@ const PLATFORM_PACKAGES = [
   },
   {
     dir: 'platform-packages/node-linux-x64-musl',
-    name: '@baerae/zkap-zkp-sdk-node-linux-x64-musl',
+    name: '@baerae/zkap-zkp-node-linux-x64-musl',
     binary: 'index.linux-x64-musl.node',
     os: 'linux',
     cpu: 'x64',
@@ -175,16 +175,16 @@ function isMuslRuntime() {
 
 function expectedRuntimePlatformPackage() {
   if (process.platform === 'darwin' && process.arch === 'arm64') {
-    return PLATFORM_PACKAGES.find((pkg) => pkg.name === '@baerae/zkap-zkp-sdk-node-darwin-arm64')
+    return PLATFORM_PACKAGES.find((pkg) => pkg.name === '@baerae/zkap-zkp-node-darwin-arm64')
   }
   if (process.platform === 'darwin' && process.arch === 'x64') {
-    return PLATFORM_PACKAGES.find((pkg) => pkg.name === '@baerae/zkap-zkp-sdk-node-darwin-x64')
+    return PLATFORM_PACKAGES.find((pkg) => pkg.name === '@baerae/zkap-zkp-node-darwin-x64')
   }
   if (process.platform === 'linux' && process.arch === 'x64') {
     return PLATFORM_PACKAGES.find((pkg) =>
       isMuslRuntime()
-        ? pkg.name === '@baerae/zkap-zkp-sdk-node-linux-x64-musl'
-        : pkg.name === '@baerae/zkap-zkp-sdk-node-linux-x64-gnu',
+        ? pkg.name === '@baerae/zkap-zkp-node-linux-x64-musl'
+        : pkg.name === '@baerae/zkap-zkp-node-linux-x64-gnu',
     )
   }
   return undefined
@@ -288,7 +288,7 @@ function smokeNodeConsumer(packedPackages) {
   const expectedPlatformPackage = expectedRuntimePlatformPackage()
   const nodePackageNames = [
     '@baerae/zkap-zkp',
-    '@baerae/zkap-zkp-sdk-node',
+    '@baerae/zkap-zkp-node',
     expectedPlatformPackage.name,
   ]
 
@@ -327,7 +327,7 @@ function smokeNodeConsumer(packedPackages) {
     `import { generateHash, initZkap, normalizeCircuitConfig, type CircuitConfig } from '@baerae/zkap-zkp'\n` +
       `import { generateHash as generateNodeHash } from '@baerae/zkap-zkp/node'\n` +
       `import { generateHash as generateNodeSyncHash } from '@baerae/zkap-zkp/node-sync'\n` +
-      `import { generateHash as generatePublicNodeHash } from '@baerae/zkap-zkp-sdk-node'\n\n` +
+      `import { generateHash as generatePublicNodeHash } from '@baerae/zkap-zkp-node'\n\n` +
       `const config: CircuitConfig = normalizeCircuitConfig({\n` +
       `  max_jwt_b64_len: 1024,\n` +
       `  max_payload_b64_len: 640,\n` +
@@ -368,7 +368,7 @@ function smokeNodeConsumer(packedPackages) {
     join(consumerDir, 'cjs-smoke.cjs'),
     `const { generateHash } = require('@baerae/zkap-zkp')\n` +
       `const { generateHash: generateHashSync } = require('@baerae/zkap-zkp/node-sync')\n` +
-      `const { generateHash: generatePublicHash } = require('@baerae/zkap-zkp-sdk-node')\n\n` +
+      `const { generateHash: generatePublicHash } = require('@baerae/zkap-zkp-node')\n\n` +
       `function assertHash(label, value) {\n` +
       `  if (!/^0x[0-9a-f]{64}$/i.test(value)) {\n` +
       `    throw new Error(label + ' returned unexpected hash output: ' + value)\n` +
@@ -390,7 +390,7 @@ function smokeNodeConsumer(packedPackages) {
     join(consumerDir, 'esm-smoke.mjs'),
     `import { generateHash, initZkap } from '@baerae/zkap-zkp'\n` +
       `import { generateHash as generateNodeHash } from '@baerae/zkap-zkp/node'\n` +
-      `import { generateHash as generatePublicHash } from '@baerae/zkap-zkp-sdk-node'\n\n` +
+      `import { generateHash as generatePublicHash } from '@baerae/zkap-zkp-node'\n\n` +
       `function assertHash(label, value) {\n` +
       `  if (!/^0x[0-9a-f]{64}$/i.test(value)) {\n` +
       `    throw new Error(label + ' returned unexpected hash output: ' + value)\n` +
@@ -412,7 +412,7 @@ function smokeBrowserConsumer(packedPackages) {
   mkdirSync(srcDir, { recursive: true })
   const browserPackageNames = [
     '@baerae/zkap-zkp',
-    '@baerae/zkap-zkp-sdk-wasm',
+    '@baerae/zkap-zkp-wasm',
   ]
 
   writeJson(join(consumerDir, 'package.json'), {
@@ -443,7 +443,7 @@ function smokeBrowserConsumer(packedPackages) {
   writeFileSync(
     join(srcDir, 'main.js'),
     `import { generateHash, initZkap } from '@baerae/zkap-zkp/wasm'\n` +
-      `import initRawWasm, { generateHash as generateRawWasmHash } from '@baerae/zkap-zkp-sdk-wasm'\n\n` +
+      `import initRawWasm, { generateHash as generateRawWasmHash } from '@baerae/zkap-zkp-wasm'\n\n` +
       `async function main() {\n` +
       `  const hashPattern = /^0x[0-9a-f]{64}$/i\n` +
       `  await initZkap()\n` +
@@ -521,7 +521,7 @@ function main() {
   console.log(`Packed consumer smoke temp dir: ${tmpRoot}`)
   const packedPackages = packageDirs.map(packPackage)
   assertPackedInternalVersions(packedPackages)
-  const rnPackage = packedPackages.find((pkg) => pkg.name === '@baerae/zkap-zkp-sdk-react-native')
+  const rnPackage = packedPackages.find((pkg) => pkg.name === '@baerae/zkap-zkp-react-native')
   if (!rnPackage) {
     throw new Error('Internal error: React Native package was not packed')
   }
