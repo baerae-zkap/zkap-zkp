@@ -48,6 +48,9 @@ jobs:
           toolchain: stable
           targets: ${{ matrix.target }}
 
+      - name: Verify iOS wasm runtime
+        run: npm run check:rn-ios-runtime -- ${{ matrix.target }}
+
       - name: Build
         run: cargo build --release --target ${{ matrix.target }} -p zkap-uniffi-bindings
 
@@ -66,9 +69,6 @@ jobs:
           - target: aarch64-linux-android
             abi: arm64-v8a
             artifact: rn-android-arm64
-          - target: armv7-linux-androideabi
-            abi: armeabi-v7a
-            artifact: rn-android-armv7
           - target: x86_64-linux-android
             abi: x86_64
             artifact: rn-android-x86_64
@@ -90,27 +90,22 @@ jobs:
 
       - name: Configure NDK cross-compilation
         run: |
-          NDK_HOME=$ANDROID_SDK_ROOT/ndk/$(ls $ANDROID_SDK_ROOT/ndk | sort -V | tail -1)
-          echo "ANDROID_NDK_HOME=$NDK_HOME" >> $GITHUB_ENV
-          TOOLCHAIN=$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin
+          NDK_HOME="$(find "$ANDROID_SDK_ROOT/ndk" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          echo "ANDROID_NDK_HOME=$NDK_HOME" >> "$GITHUB_ENV"
+          TOOLCHAIN="$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin"
 
           # Set linker, C compiler, and archiver for each ABI
           # CC_* and AR_* are required by cc-rs to compile C dependencies (e.g. mimalloc)
           case "${{ matrix.target }}" in
             aarch64-linux-android)
-              echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$TOOLCHAIN/aarch64-linux-android21-clang" >> $GITHUB_ENV
-              echo "CC_aarch64_linux_android=$TOOLCHAIN/aarch64-linux-android21-clang" >> $GITHUB_ENV
-              echo "AR_aarch64_linux_android=$TOOLCHAIN/llvm-ar" >> $GITHUB_ENV
-              ;;
-            armv7-linux-androideabi)
-              echo "CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_LINKER=$TOOLCHAIN/armv7a-linux-androideabi21-clang" >> $GITHUB_ENV
-              echo "CC_armv7_linux_androideabi=$TOOLCHAIN/armv7a-linux-androideabi21-clang" >> $GITHUB_ENV
-              echo "AR_armv7_linux_androideabi=$TOOLCHAIN/llvm-ar" >> $GITHUB_ENV
+              echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$TOOLCHAIN/aarch64-linux-android21-clang" >> "$GITHUB_ENV"
+              echo "CC_aarch64_linux_android=$TOOLCHAIN/aarch64-linux-android21-clang" >> "$GITHUB_ENV"
+              echo "AR_aarch64_linux_android=$TOOLCHAIN/llvm-ar" >> "$GITHUB_ENV"
               ;;
             x86_64-linux-android)
-              echo "CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER=$TOOLCHAIN/x86_64-linux-android21-clang" >> $GITHUB_ENV
-              echo "CC_x86_64_linux_android=$TOOLCHAIN/x86_64-linux-android21-clang" >> $GITHUB_ENV
-              echo "AR_x86_64_linux_android=$TOOLCHAIN/llvm-ar" >> $GITHUB_ENV
+              echo "CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER=$TOOLCHAIN/x86_64-linux-android21-clang" >> "$GITHUB_ENV"
+              echo "CC_x86_64_linux_android=$TOOLCHAIN/x86_64-linux-android21-clang" >> "$GITHUB_ENV"
+              echo "AR_x86_64_linux_android=$TOOLCHAIN/llvm-ar" >> "$GITHUB_ENV"
               ;;
           esac
 
@@ -230,12 +225,6 @@ jobs:
           name: rn-android-arm64
           path: packages/sdk-react-native/android/libs/arm64-v8a
 
-      - name: Download Android armv7 .so
-        uses: actions/download-artifact@v4
-        with:
-          name: rn-android-armv7
-          path: packages/sdk-react-native/android/libs/armeabi-v7a
-
       - name: Download Android x86_64 .so
         uses: actions/download-artifact@v4
         with:
@@ -243,11 +232,7 @@ jobs:
           path: packages/sdk-react-native/android/libs/x86_64
 
       - name: Verify package binaries
-        run: |
-          test -d packages/sdk-react-native/ios/ZkapZkp.xcframework
-          test -f packages/sdk-react-native/android/libs/arm64-v8a/libzkap_uniffi_bindings.so
-          test -f packages/sdk-react-native/android/libs/armeabi-v7a/libzkap_uniffi_bindings.so
-          test -f packages/sdk-react-native/android/libs/x86_64/libzkap_uniffi_bindings.so
+        run: node scripts/check-rn-native-artifacts.mjs
 
       - name: Publish dry-run
         env:

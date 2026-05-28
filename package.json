@@ -9,7 +9,10 @@
   ],
   "scripts": {
     "build:node": "cd packages/sdk-node && npm run build",
-    "check:release-packages": "node scripts/check-release-packages.mjs",
+    "check:rn-ios-runtime": "node scripts/check-rn-ios-runtime.mjs",
+    "check:rn-native-artifacts": "node scripts/check-rn-native-artifacts.mjs",
+    "check:node-platform-packages": "node scripts/verify-node-platform-packages.mjs",
+    "check:release-packages": "node scripts/check-release-packages.mjs && node scripts/check-rn-native-artifacts.mjs",
     "check:npm-latest": "node scripts/check-npm-latest.mjs"
   }
 }

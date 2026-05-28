@@ -67,8 +67,14 @@ updatePackageJson('packages/sdk-node', (pkg) => {
 // 3. sdk facade
 updatePackageJson('packages/sdk', (pkg) => {
   pkg.version = version;
-  if (pkg.dependencies?.['@baerae/zkap-zkp-node']) {
-    pkg.dependencies['@baerae/zkap-zkp-node'] = version;
+  for (const key of [
+    '@baerae/zkap-zkp-node',
+    '@baerae/zkap-zkp-wasm',
+    '@baerae/zkap-zkp-react-native',
+  ]) {
+    if (pkg.dependencies?.[key]) {
+      pkg.dependencies[key] = version;
+    }
   }
 });
 
