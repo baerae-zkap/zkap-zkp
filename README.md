@@ -11,10 +11,28 @@ Zero-Knowledge Proof SDK for Node.js, WebAssembly, and React Native, based on Gr
 | [`@baerae/zkap-zkp-sdk-react-native`](./packages/sdk-react-native) | React Native | `npm install @baerae/zkap-zkp-sdk-react-native` |
 | [`@baerae/zkap-zkp`](./packages/sdk) | Compatibility facade | `npm install @baerae/zkap-zkp <runtime package>` |
 
-Install the package for the runtime you actually run. The compatibility facade
-keeps the historical `@baerae/zkap-zkp` import paths, but its runtime packages
-are optional peers so it no longer forces Node, WebAssembly, and React Native
-dependencies into every application.
+Install the package for the runtime you actually run. The runtime-specific
+packages are the recommended default for new applications.
+
+The compatibility facade keeps the historical `@baerae/zkap-zkp` import paths,
+but its runtime packages are optional peers. Installing `@baerae/zkap-zkp` by
+itself does not install a Node, WebAssembly, or React Native implementation.
+Install exactly one matching runtime package beside it when you need the facade:
+
+```bash
+# Node.js facade API
+npm install @baerae/zkap-zkp @baerae/zkap-zkp-sdk-node
+
+# Browser/WebAssembly facade API
+npm install @baerae/zkap-zkp @baerae/zkap-zkp-sdk-wasm
+
+# React Native facade API
+npx expo install @baerae/zkap-zkp @baerae/zkap-zkp-sdk-react-native
+```
+
+This package manager model is intentional: npm cannot reliably infer whether a
+consumer project is a Node.js server, a browser bundle, or a React Native app at
+install time, so the runtime package is selected explicitly by the application.
 
 The runtime packages expose their existing runtime-specific APIs. Use the
 `@baerae/zkap-zkp` facade only when you need the uniform Promise-based API and

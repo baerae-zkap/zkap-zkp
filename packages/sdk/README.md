@@ -8,11 +8,18 @@ should install exactly one runtime package:
 - React Native: `@baerae/zkap-zkp-sdk-react-native`
 
 This facade keeps the historical import paths, but the runtime implementations
-are optional peers. If you install the facade directly, install the matching
-runtime binding package alongside it.
+are optional peers. `npm install @baerae/zkap-zkp` alone is not enough to run
+the SDK; install exactly one matching runtime package alongside it.
 
 ```bash
+# Node.js
 npm install @baerae/zkap-zkp @baerae/zkap-zkp-sdk-node
+
+# Browser/WebAssembly
+npm install @baerae/zkap-zkp @baerae/zkap-zkp-sdk-wasm
+
+# React Native
+npx expo install @baerae/zkap-zkp @baerae/zkap-zkp-sdk-react-native
 ```
 
 ```ts
@@ -26,7 +33,8 @@ const anchor = await generateAnchor(config, secrets)
 The root API is Promise-based in every runtime. Internally this package resolves
 to `@baerae/zkap-zkp-sdk-node`, `@baerae/zkap-zkp-sdk-wasm`, or
 `@baerae/zkap-zkp-sdk-react-native` through package export conditions, but it does
-not install all three runtimes for you.
+not install all three runtimes for you. npm cannot reliably infer the target
+runtime at install time, so applications choose the runtime package explicitly.
 
 ## Runtime-specific imports
 

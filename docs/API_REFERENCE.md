@@ -3,9 +3,21 @@
 Public API for the `@baerae/zkap-zkp` compatibility facade. Install it with the
 matching runtime package for your environment:
 
-- Node.js: `@baerae/zkap-zkp-sdk-node`
-- Browser/WebAssembly: `@baerae/zkap-zkp-sdk-wasm`
-- React Native: `@baerae/zkap-zkp-sdk-react-native`
+```bash
+# Node.js
+npm install @baerae/zkap-zkp @baerae/zkap-zkp-sdk-node
+
+# Browser/WebAssembly
+npm install @baerae/zkap-zkp @baerae/zkap-zkp-sdk-wasm
+
+# React Native
+npx expo install @baerae/zkap-zkp @baerae/zkap-zkp-sdk-react-native
+```
+
+Do not install `@baerae/zkap-zkp` by itself unless another dependency already
+provides the matching runtime package. The facade declares runtime packages as
+optional peers so it does not force every environment to install Node,
+WebAssembly, and React Native bindings.
 
 The direct runtime packages keep their runtime-native API shapes. The facade
 normalizes those APIs to Promise-based functions, camelCase config, and shared

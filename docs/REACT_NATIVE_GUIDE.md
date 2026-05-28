@@ -30,10 +30,11 @@ npm install @baerae/zkap-zkp-sdk-react-native expo-modules-core
 
 The direct React Native package does not include release-download helpers. If
 you use the `@baerae/zkap-zkp` compatibility facade for
-`downloadRelease()` / `loadCircuitConfig()`, install Expo FileSystem:
+`downloadRelease()` / `loadCircuitConfig()`, install the facade beside the
+React Native runtime package and add Expo FileSystem:
 
 ```bash
-npx expo install expo-file-system
+npx expo install @baerae/zkap-zkp @baerae/zkap-zkp-sdk-react-native expo-file-system
 ```
 
 ### iOS Setup
@@ -157,8 +158,7 @@ If you want the SDK to download and stage a remote flat release directory, use
 the compatibility facade with this runtime package:
 
 ```bash
-npm install @baerae/zkap-zkp
-npx expo install expo-file-system
+npx expo install @baerae/zkap-zkp @baerae/zkap-zkp-sdk-react-native expo-file-system
 ```
 
 ```typescript

@@ -14,7 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
-- **`@baerae/zkap-zkp` no longer hard-depends on every runtime binding.** The compatibility facade now declares the runtime packages as optional peers, so installing the facade does not force Node, WebAssembly, and React Native bindings into every application.
+- **`@baerae/zkap-zkp` no longer hard-depends on every runtime binding.** The compatibility facade now declares the runtime packages as optional peers, so installing the facade does not force Node, WebAssembly, and React Native bindings into every application. Consumers that use the facade must install `@baerae/zkap-zkp` plus exactly one matching runtime package.
 
 ## [0.1.5] - 2026-05-20
 
