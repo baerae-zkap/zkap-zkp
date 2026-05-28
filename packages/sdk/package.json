@@ -1,15 +1,47 @@
 {
   "name": "@baerae/zkap-zkp",
-  "version": "0.1.4",
-  "description": "Node.js SDK for zkap-zkp. For browser (WebAssembly), use @baerae/zkap-zkp-wasm.",
+  "version": "0.1.5",
+  "description": "Multi-runtime SDK for zkap-zkp: Node.js, WebAssembly, and React Native.",
   "main": "./dist/node.cjs",
   "module": "./dist/node.mjs",
-  "types": "./dist/node.d.ts",
+  "types": "./dist/index.d.ts",
+  "browser": "./dist/wasm.mjs",
+  "react-native": "./dist/react-native.js",
   "exports": {
     ".": {
-      "types": "./dist/node.d.ts",
+      "types": "./dist/index.d.ts",
+      "react-native": "./dist/react-native.js",
+      "browser": "./dist/wasm.mjs",
+      "node": {
+        "types": "./dist/node.d.ts",
+        "import": "./dist/node.mjs",
+        "require": "./dist/node.cjs"
+      },
+      "import": "./dist/wasm.mjs",
       "require": "./dist/node.cjs",
-      "import": "./dist/node.mjs"
+      "default": "./dist/wasm.mjs"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "import": "./dist/node.mjs",
+      "require": "./dist/node.cjs"
+    },
+    "./node-sync": {
+      "types": "./dist/node-sync.d.ts",
+      "import": "./dist/node-sync.mjs",
+      "require": "./dist/node-sync.cjs"
+    },
+    "./wasm": {
+      "types": "./dist/wasm.d.ts",
+      "import": "./dist/wasm.mjs"
+    },
+    "./react-native": {
+      "types": "./dist/react-native.d.ts",
+      "react-native": "./dist/react-native.js",
+      "default": "./dist/react-native.js"
+    },
+    "./package.json": {
+      "default": "./package.json"
     }
   },
   "files": [
@@ -39,12 +71,22 @@
     "access": "public"
   },
   "dependencies": {
-    "@baerae/zkap-zkp-node": "0.1.4"
+    "@baerae/zkap-zkp-node": "0.1.5",
+    "@baerae/zkap-zkp-react-native": "0.1.5",
+    "@baerae/zkap-zkp-wasm": "0.1.5"
+  },
+  "peerDependencies": {
+    "expo-file-system": ">=17"
+  },
+  "peerDependenciesMeta": {
+    "expo-file-system": {
+      "optional": true
+    }
   },
   "scripts": {
-    "build": "tsup",
+    "build": "node scripts/clean-dist.mjs && tsup",
     "prepack": "npm run build",
-    "test": "echo 'no tests — sdk is a pure re-export of @baerae/zkap-zkp-node'"
+    "test": "npm run build"
   },
   "devDependencies": {
     "tsup": "^8.0.0",
