@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Version to publish for @baerae/zkap-zkp-react-native
+        description: Version to publish for @baerae/zkap-zkp-sdk-react-native
         required: true
         type: string
       dry_run_only:
@@ -207,9 +207,9 @@ jobs:
       - name: Verify react-native package is still unpublished
         shell: bash
         run: |
-          LATEST="$(npm view @baerae/zkap-zkp-react-native dist-tags.latest --registry https://registry.npmjs.org 2>/dev/null || true)"
+          LATEST="$(npm view @baerae/zkap-zkp-sdk-react-native dist-tags.latest --registry https://registry.npmjs.org 2>/dev/null || true)"
           if [ -n "$LATEST" ]; then
-            echo "::error::@baerae/zkap-zkp-react-native already has latest=$LATEST on npm"
+            echo "::error::@baerae/zkap-zkp-sdk-react-native already has latest=$LATEST on npm"
             exit 1
           fi
 

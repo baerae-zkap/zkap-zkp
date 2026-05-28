@@ -1,18 +1,20 @@
-# `@baerae/zkap-zkp-wasm`
+# `@baerae/zkap-zkp-sdk-wasm`
 
 WebAssembly bindings for zkap-zkp.
 
 Install:
 
 ```bash
-npm install @baerae/zkap-zkp-wasm
+npm install @baerae/zkap-zkp-sdk-wasm
 ```
 
 ```ts
-import init, { generateHash, generateAnchor } from '@baerae/zkap-zkp-wasm'
+import initZkap, { generateHash, generateAnchor } from '@baerae/zkap-zkp-sdk-wasm'
 
-await init()
+await initZkap()
 const hash = generateHash(['0x1', '0x2'])
 ```
 
-For server-side proof generation and verification, use `@baerae/zkap-zkp`.
+This direct runtime package exposes the wasm-pack API. Initialize the WASM
+module once, then call the hash helpers synchronously. Use `@baerae/zkap-zkp`
+with this package when you need the Promise-based compatibility facade.

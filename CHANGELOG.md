@@ -8,8 +8,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **SDK-prefixed runtime package names**: the existing Node, WASM, and React Native package directories now publish as `@baerae/zkap-zkp-sdk-node`, `@baerae/zkap-zkp-sdk-wasm`, and `@baerae/zkap-zkp-sdk-react-native`, so applications can install only the SDK package for their runtime.
 - **`downloadRelease({ baseUrl, shape, ... })`** (`@baerae/zkap-zkp`): downloads a zkap-circuit flat release bundle from static hosting and stages it as a local `manifestDir` for Node.js and React Native. Supports `expectedReleaseSha` pinning, cache reuse, progress callbacks, and test/custom networking through `fetch`.
 - **`loadCircuitConfig(manifestDir)` / `normalizeCircuitConfig(input)`**: reads release `config.json`, verifies it against `manifest.json`, and returns the public facade camelCase `CircuitConfig`; `normalizeCircuitConfig` is available in Node.js, React Native, and WASM.
+
+### Changed
+
+- **`@baerae/zkap-zkp` no longer hard-depends on every runtime binding.** The compatibility facade now declares the runtime packages as optional peers, so installing the facade does not force Node, WebAssembly, and React Native bindings into every application.
 
 ## [0.1.5] - 2026-05-20
 
@@ -19,7 +24,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
-- **`verify` is now re-exported through `@baerae/zkap-zkp` facade.** Previously defined in `@baerae/zkap-zkp-node`'s `index.d.ts` but never re-exported through the public facade; this blocked consumers of the ADR-003 facade-only convention (e.g. `zkap-zkp-testbed/node-harness/`) from calling `verify()` without violating the lint rule.
+- **`verify` is now re-exported through `@baerae/zkap-zkp` facade.** Previously defined in `@baerae/zkap-zkp-sdk-node`'s `index.d.ts` but never re-exported through the public facade; this blocked consumers of the ADR-003 facade-only convention (e.g. `zkap-zkp-testbed/node-harness/`) from calling `verify()` without violating the lint rule.
 
 ### Notes
 
@@ -67,7 +72,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 - `@baerae/zkap-zkp` — Node.js facade with full API (hash, anchor, prove, verify)
-- `@baerae/zkap-zkp-node` — napi-rs native bindings (darwin-x64, darwin-arm64, linux-x64-gnu, linux-x64-musl)
-- `@baerae/zkap-zkp-wasm` — WebAssembly bindings (hash functions only)
+- `@baerae/zkap-zkp-sdk-node` — napi-rs native bindings (darwin-x64, darwin-arm64, linux-x64-gnu, linux-x64-musl)
+- `@baerae/zkap-zkp-sdk-wasm` — WebAssembly bindings (hash functions only)
 - `artifact-manager` — On-demand PK download from S3 with SHA256 verification and HTTP resume
 - GitHub Actions workflows for multi-platform build and npm publish

@@ -1,7 +1,7 @@
 {
-  "name": "@baerae/zkap-zkp-node-linux-x64-gnu",
+  "name": "@baerae/zkap-zkp-sdk-node-linux-x64-gnu",
   "version": "0.1.5",
-  "description": "Linux x64 (glibc) binary for @baerae/zkap-zkp-node",
+  "description": "Linux x64 (glibc) binary for @baerae/zkap-zkp-sdk-node",
   "os": [
     "linux"
   ],

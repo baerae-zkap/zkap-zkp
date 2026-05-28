@@ -68,12 +68,12 @@ updatePackageJson('packages/sdk-node', (pkg) => {
 updatePackageJson('packages/sdk', (pkg) => {
   pkg.version = version;
   for (const key of [
-    '@baerae/zkap-zkp-node',
-    '@baerae/zkap-zkp-wasm',
-    '@baerae/zkap-zkp-react-native',
+    '@baerae/zkap-zkp-sdk-node',
+    '@baerae/zkap-zkp-sdk-wasm',
+    '@baerae/zkap-zkp-sdk-react-native',
   ]) {
-    if (pkg.dependencies?.[key]) {
-      pkg.dependencies[key] = version;
+    if (pkg.peerDependencies?.[key]) {
+      pkg.peerDependencies[key] = version;
     }
   }
 });

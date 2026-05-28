@@ -1,10 +1,18 @@
 # `@baerae/zkap-zkp`
 
-Multi-runtime SDK for zkap-zkp. Install this package once and use the same
-public import from Node.js, browser/WebAssembly, and React Native.
+Compatibility facade for the zkap-zkp runtime SDK packages. New applications
+should install exactly one runtime package:
+
+- Node.js: `@baerae/zkap-zkp-sdk-node`
+- Browser/WebAssembly: `@baerae/zkap-zkp-sdk-wasm`
+- React Native: `@baerae/zkap-zkp-sdk-react-native`
+
+This facade keeps the historical import paths, but the runtime implementations
+are optional peers. If you install the facade directly, install the matching
+runtime binding package alongside it.
 
 ```bash
-npm install @baerae/zkap-zkp
+npm install @baerae/zkap-zkp @baerae/zkap-zkp-sdk-node
 ```
 
 ```ts
@@ -16,8 +24,9 @@ const anchor = await generateAnchor(config, secrets)
 ```
 
 The root API is Promise-based in every runtime. Internally this package resolves
-to `@baerae/zkap-zkp-node`, `@baerae/zkap-zkp-wasm`, or
-`@baerae/zkap-zkp-react-native` through package export conditions.
+to `@baerae/zkap-zkp-sdk-node`, `@baerae/zkap-zkp-sdk-wasm`, or
+`@baerae/zkap-zkp-sdk-react-native` through package export conditions, but it does
+not install all three runtimes for you.
 
 ## Runtime-specific imports
 

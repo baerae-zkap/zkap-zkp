@@ -50,7 +50,7 @@ export {
   prepareProver,
   prove,
   verify,
-} from '@baerae/zkap-zkp-node';
+} from '@baerae/zkap-zkp-sdk-node';
 
 export function initZkap(): void {
   return undefined;
