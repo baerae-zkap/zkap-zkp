@@ -1,9 +1,0 @@
-{
-  "platforms": ["ios", "android"],
-  "ios": {
-    "modules": ["ZkapSdkModule"]
-  },
-  "android": {
-    "modules": ["expo.modules.zkap.ZkapSdkModule"]
-  }
-}

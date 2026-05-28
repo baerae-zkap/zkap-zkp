@@ -11,6 +11,9 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 INCLUDE_DIR="$REPO_ROOT/packages/sdk-react-native/ios/include"
 OUT_DIR="$REPO_ROOT/packages/sdk-react-native/ios/ZkapZkp.xcframework"
 
+echo "==> Verifying iOS wasm runtime..."
+npm run check:rn-ios-runtime -- aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios
+
 echo "==> Building iOS targets..."
 cargo build --release --target aarch64-apple-ios      -p zkap-uniffi-bindings
 cargo build --release --target aarch64-apple-ios-sim  -p zkap-uniffi-bindings

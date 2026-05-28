@@ -1,6 +1,19 @@
-import { requireNativeModule } from 'expo-modules-core';
-
-const ZkapSdk = requireNativeModule('ZkapSdk');
+import NativeZkapReactNative from './NativeZkapReactNative';
+import { Platform } from 'react-native';
+import generatedBindings, {
+  generateAnchor as nativeGenerateAnchor,
+  generateAudHash as nativeGenerateAudHash,
+  generateHash as nativeGenerateHash,
+  generateLeafHash as nativeGenerateLeafHash,
+  prepareWitnessInputs as nativePrepareWitnessInputs,
+  prove as nativeProve,
+  proveFromWitnessBundleFile as nativeProveFromWitnessBundleFile,
+  type ZkapCircuitConfig,
+  type ZkapPreparedWitnessInputs,
+  type ZkapProofRequest,
+  type ZkapProveCredential,
+  type ZkapWitnessBundleFile,
+} from './generated/zkap_uniffi_bindings';
 
 // ──────────────────────────────────────────────────────────────────
 // Input / Output types
@@ -28,32 +41,210 @@ export interface Secret {
   aud: string;
 }
 
+export interface ProveCredential {
+  jwt: string;
+  rsa_modulus_b64?: string;
+  rsaModulusB64?: string;
+  merkle_path?: string[];
+  merklePath?: string[];
+  merkle_leaf_idx?: number;
+  merkleLeafIdx?: number;
+}
+
 export interface ProveRequest {
-  pk_path: string;
-  jwts: string[];
-  pk_ops: string[];
-  merkle_paths: string[][];
-  leaf_indices: number[];
-  root: string;
-  /** Anchor polynomial evaluations (N - K + 1 entries). */
-  anchor_evals: string[];
-  /** Anchor chain hash (hanchor). */
-  hanchor: string;
-  h_sign_user_op: string;
+  manifest_dir?: string;
+  manifestDir?: string;
   random: string;
-  /** Pre-computed audience hashes (from generateAudHash). */
-  aud_hash_list: string[];
+  h_sign_user_op?: string;
+  hSignUserOp?: string;
+  anchor: string[];
+  merkle_root?: string;
+  merkleRoot?: string;
+  credentials: ProveCredential[];
 }
 
 export interface ProveResult {
   /** Solidity-compatible proof per proof: [ax, ay, bx_c1, bx_c0, by_c1, by_c0, cx, cy] */
   proofs: string[][];
-  /** Public inputs shared across all JWTs (indices 0,1,2,3,6,7) as decimal strings */
+  /** Public inputs shared across all JWTs as decimal strings. */
   shared_inputs: string[];
-  /** partial_rhs per JWT (index 5) as decimal string */
+  /** partial_rhs per JWT as decimal string. */
   partial_rhs_list: string[];
-  /** jwt_exp per JWT (index 4) as decimal string */
+  /** jwt_exp per JWT as decimal string. */
   jwt_exp_list: string[];
+}
+
+let initialized = false;
+const IOS_WITNESS_CHUNK_SIZE = 4 * 1024 * 1024;
+
+function ensureInitialized(): void {
+  if (initialized) return;
+  NativeZkapReactNative.installRustCrate();
+  generatedBindings.initialize();
+  initialized = true;
+}
+
+type ZkapUniFfiError = Error & {
+  tag?: string;
+  inner?: {
+    message?: string;
+  };
+};
+
+function withZkapErrorMessage<T>(fn: () => T): T {
+  try {
+    return fn();
+  } catch (error) {
+    const zkapError = error as ZkapUniFfiError;
+    const message = zkapError?.inner?.message;
+    if (typeof message === 'string' && message.length > 0) {
+      const wrapped = new Error(message);
+      wrapped.name = zkapError.tag
+        ? `ZkapError.${zkapError.tag}`
+        : zkapError.name || 'ZkapError';
+      (wrapped as Error & { cause?: unknown }).cause = error;
+      throw wrapped;
+    }
+    throw error;
+  }
+}
+
+function toNativeConfig(config: CircuitConfig): ZkapCircuitConfig {
+  return {
+    maxJwtB64Len: BigInt(config.max_jwt_b64_len),
+    maxPayloadB64Len: BigInt(config.max_payload_b64_len),
+    maxAudLen: BigInt(config.max_aud_len),
+    maxExpLen: BigInt(config.max_exp_len),
+    maxIssLen: BigInt(config.max_iss_len),
+    maxNonceLen: BigInt(config.max_nonce_len),
+    maxSubLen: BigInt(config.max_sub_len),
+    n: BigInt(config.n),
+    k: BigInt(config.k),
+    treeHeight: BigInt(config.tree_height),
+    numAudienceLimit: BigInt(config.num_audience_limit),
+    claims: config.claims,
+    forbiddenString: config.forbidden_string,
+  };
+}
+
+function requireString(value: string | undefined, field: string): string {
+  if (!value) {
+    throw new Error(`[zkap/sdk-react-native] missing ${field}`);
+  }
+  return value;
+}
+
+function requireArray<T>(value: T[] | undefined, field: string): T[] {
+  if (!value) {
+    throw new Error(`[zkap/sdk-react-native] missing ${field}`);
+  }
+  return value;
+}
+
+function requireNumber(value: number | undefined, field: string): number {
+  if (value === undefined || value === null) {
+    throw new Error(`[zkap/sdk-react-native] missing ${field}`);
+  }
+  return value;
+}
+
+function toNativeCredential(credential: ProveCredential): ZkapProveCredential {
+  return {
+    jwt: credential.jwt,
+    rsaModulusB64: requireString(
+      credential.rsa_modulus_b64 ?? credential.rsaModulusB64,
+      'credential.rsa_modulus_b64',
+    ),
+    merklePath: requireArray(
+      credential.merkle_path ?? credential.merklePath,
+      'credential.merkle_path',
+    ),
+    merkleLeafIdx: BigInt(
+      requireNumber(
+        credential.merkle_leaf_idx ?? credential.merkleLeafIdx,
+        'credential.merkle_leaf_idx',
+      ),
+    ),
+  };
+}
+
+function toNativeRequest(request: ProveRequest): ZkapProofRequest {
+  return {
+    manifestDir: requireString(
+      request.manifest_dir ?? request.manifestDir,
+      'manifest_dir',
+    ),
+    random: request.random,
+    hSignUserOp: requireString(
+      request.h_sign_user_op ?? request.hSignUserOp,
+      'h_sign_user_op',
+    ),
+    anchor: request.anchor,
+    merkleRoot: requireString(
+      request.merkle_root ?? request.merkleRoot,
+      'merkle_root',
+    ),
+    credentials: request.credentials.map(toNativeCredential),
+  };
+}
+
+function toProofResult(result: {
+  proofs: string[][];
+  sharedInputs: string[];
+  partialRhsList: string[];
+  jwtExpList: string[];
+}): ProveResult {
+  return {
+    proofs: result.proofs,
+    shared_inputs: result.sharedInputs,
+    partial_rhs_list: result.partialRhsList,
+    jwt_exp_list: result.jwtExpList,
+  };
+}
+
+function makeRunId(): string {
+  return `zkap-${Date.now().toString(36)}-${Math.random()
+    .toString(36)
+    .slice(2)}`;
+}
+
+type IosWitnessRunnerResult = {
+  witnessBundlePath?: unknown;
+  sha256?: unknown;
+  byteLength?: unknown;
+};
+
+async function runIosWitness(
+  prepared: ZkapPreparedWitnessInputs,
+): Promise<ZkapWitnessBundleFile> {
+  const inputJson = JSON.stringify({
+    run_id: makeRunId(),
+    chunk_size: IOS_WITNESS_CHUNK_SIZE,
+    wasm_base64: prepared.wasmBase64,
+    request_json_base64: prepared.requestJsonBase64,
+    config_json_base64: prepared.configJsonBase64,
+    witness_gen_sha256: prepared.witnessGenSha256,
+    request_json_sha256: prepared.requestJsonSha256,
+    config_json_sha256: prepared.configJsonSha256,
+    wasm_byte_length: prepared.wasmByteLength.toString(),
+    request_json_byte_length: prepared.requestJsonByteLength.toString(),
+    config_json_byte_length: prepared.configJsonByteLength.toString(),
+  });
+
+  const resultJson = await NativeZkapReactNative.runWitnessInWkWebView(inputJson);
+  const parsed = JSON.parse(resultJson) as IosWitnessRunnerResult;
+  if (
+    typeof parsed.witnessBundlePath !== 'string' ||
+    typeof parsed.sha256 !== 'string' ||
+    typeof parsed.byteLength !== 'number'
+  ) {
+    throw new Error('[zkap/sdk-react-native] invalid WKWebView witness result');
+  }
+  return {
+    witnessBundlePath: parsed.witnessBundlePath,
+    sha256: parsed.sha256,
+    byteLength: BigInt(parsed.byteLength),
+  };
 }
 
 // ──────────────────────────────────────────────────────────────────
@@ -65,10 +256,8 @@ export interface ProveResult {
  * Returns the result as a 0x-prefixed hex string.
  */
 export async function generateHash(messages: string[]): Promise<string> {
-  const result: string = await ZkapSdk.generateHash(
-    JSON.stringify({ messages })
-  );
-  return JSON.parse(result).result as string;
+  ensureInitialized();
+  return withZkapErrorMessage(() => nativeGenerateHash(messages));
 }
 
 /**
@@ -77,12 +266,10 @@ export async function generateHash(messages: string[]): Promise<string> {
  */
 export async function generateAnchor(
   config: CircuitConfig,
-  secrets: Secret[]
+  secrets: Secret[],
 ): Promise<{ evaluations: string[] }> {
-  const result: string = await ZkapSdk.generateAnchor(
-    JSON.stringify({ config, secrets })
-  );
-  return JSON.parse(result) as { evaluations: string[] };
+  ensureInitialized();
+  return withZkapErrorMessage(() => nativeGenerateAnchor(toNativeConfig(config), secrets));
 }
 
 /**
@@ -90,12 +277,16 @@ export async function generateAnchor(
  */
 export async function generateAudHash(
   config: CircuitConfig,
-  aud_list: string[]
+  aud_list: string[],
 ): Promise<{ aud_hashes: string[]; h_aud_list: string }> {
-  const result: string = await ZkapSdk.generateAudHash(
-    JSON.stringify({ config, aud_list })
+  ensureInitialized();
+  const result = withZkapErrorMessage(() =>
+    nativeGenerateAudHash(toNativeConfig(config), aud_list)
   );
-  return JSON.parse(result) as { aud_hashes: string[]; h_aud_list: string };
+  return {
+    aud_hashes: result.audHashes,
+    h_aud_list: result.hAudList,
+  };
 }
 
 /**
@@ -104,26 +295,40 @@ export async function generateAudHash(
 export async function generateLeafHash(
   config: CircuitConfig,
   iss: string,
-  pk_b64: string
+  pk_b64: string,
 ): Promise<string> {
-  const result: string = await ZkapSdk.generateLeafHash(
-    JSON.stringify({ config, iss, pk_b64 })
-  );
-  return JSON.parse(result).result as string;
+  ensureInitialized();
+  return withZkapErrorMessage(() => nativeGenerateLeafHash(toNativeConfig(config), iss, pk_b64));
 }
 
 /**
  * Generate Groth16 proofs (on-device proving).
- * Requires a proving key file on disk.
+ *
+ * Requires a manifest-validated CRS directory containing manifest.json,
+ * circuit.ar1cs, pk.bin, vk.bin, pvk.bin, config.json, and witness_gen.wasm.
  */
 export async function prove(
   config: CircuitConfig,
-  request: ProveRequest
+  request: ProveRequest,
 ): Promise<ProveResult> {
-  const result: string = await ZkapSdk.prove(
-    JSON.stringify({ config, request })
+  ensureInitialized();
+  const nativeConfig = toNativeConfig(config);
+  const nativeRequest = toNativeRequest(request);
+  if (Platform.OS === 'ios') {
+    const prepared = withZkapErrorMessage(() =>
+      nativePrepareWitnessInputs(nativeConfig, nativeRequest)
+    );
+    const witness = await runIosWitness(prepared);
+    return toProofResult(
+      withZkapErrorMessage(() =>
+        nativeProveFromWitnessBundleFile(nativeConfig, nativeRequest, witness)
+      )
+    );
+  }
+
+  return toProofResult(
+    withZkapErrorMessage(() => nativeProve(nativeConfig, nativeRequest))
   );
-  return JSON.parse(result) as ProveResult;
 }
 
 // ──────────────────────────────────────────────────────────────────
@@ -137,18 +342,17 @@ export async function prove(
 export function groth16Setup(): never {
   throw new Error(
     '[zkap/sdk-react-native] groth16Setup() is not supported on mobile. ' +
-    'Note: this function has been removed from all SDK packages as of v0.1.2.'
+    'Note: this function has been removed from all SDK packages as of v0.1.2.',
   );
 }
 
 /**
  * NOT supported on React Native.
- * verify() has been removed from all SDK packages as of v0.1.2.
+ * Verification is currently kept on-chain / server-side for mobile consumers.
  */
 export function verify(): never {
   throw new Error(
     '[zkap/sdk-react-native] verify() is not supported on mobile. ' +
-    'Note: this function has been removed from all SDK packages as of v0.1.2.'
+    'Use the on-chain verifier or the Node SDK verify() helper.',
   );
 }
-
