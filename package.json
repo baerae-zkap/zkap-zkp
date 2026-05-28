@@ -13,6 +13,7 @@
     "check:rn-native-artifacts": "node scripts/check-rn-native-artifacts.mjs",
     "check:node-platform-packages": "node scripts/verify-node-platform-packages.mjs",
     "check:release-packages": "node scripts/check-release-packages.mjs && node scripts/check-rn-native-artifacts.mjs",
-    "check:npm-latest": "node scripts/check-npm-latest.mjs"
+    "check:npm-latest": "node scripts/check-npm-latest.mjs",
+    "smoke:packed-consumers": "node scripts/smoke-packed-consumers.mjs"
   }
 }

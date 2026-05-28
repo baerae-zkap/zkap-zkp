@@ -45,11 +45,32 @@ jobs:
           npm install "${{ steps.spec.outputs.value }}"
           node - <<'EOF'
           const { generateHash } = require('@baerae/zkap-zkp')
+          ;(async () => {
+            const result = await generateHash(['1'])
+            if (!/^0x[0-9a-f]{64}$/i.test(result)) {
+              throw new Error(`unexpected hash output: ${result}`)
+            }
+            console.log(`macOS smoke OK: ${result}`)
+          })().catch((error) => {
+            console.error(error)
+            process.exit(1)
+          })
+          EOF
+
+      - name: Install and run sync subpath smoke test
+        shell: bash
+        run: |
+          TMP_DIR="$(mktemp -d)"
+          cd "$TMP_DIR"
+          npm init -y
+          npm install "${{ steps.spec.outputs.value }}"
+          node - <<'EOF'
+          const { generateHash } = require('@baerae/zkap-zkp/node-sync')
           const result = generateHash(['1'])
           if (!/^0x[0-9a-f]{64}$/i.test(result)) {
             throw new Error(`unexpected hash output: ${result}`)
           }
-          console.log(`macOS smoke OK: ${result}`)
+          console.log(`macOS node-sync smoke OK: ${result}`)
           EOF
 
   linux-musl-node-smoke:
@@ -80,9 +101,14 @@ jobs:
           npm install "${{ steps.spec.outputs.value }}"
           node - <<'EOF'
           const { generateHash } = require('@baerae/zkap-zkp')
-          const result = generateHash(['1'])
-          if (!/^0x[0-9a-f]{64}$/i.test(result)) {
-            throw new Error(`unexpected hash output: ${result}`)
-          }
-          console.log(`linux-musl smoke OK: ${result}`)
+          ;(async () => {
+            const result = await generateHash(['1'])
+            if (!/^0x[0-9a-f]{64}$/i.test(result)) {
+              throw new Error(`unexpected hash output: ${result}`)
+            }
+            console.log(`linux-musl smoke OK: ${result}`)
+          })().catch((error) => {
+            console.error(error)
+            process.exit(1)
+          })
           EOF
