@@ -1,6 +1,7 @@
 # API Reference
 
-Public API for `@baerae/zkap-zkp` (Node.js), `@baerae/zkap-zkp-wasm` (Browser), and `@baerae/zkap-zkp-react-native` (Expo).
+Public API for `@baerae/zkap-zkp`. The root package resolves to Node.js,
+browser/WebAssembly, or React Native through package export conditions.
 
 ## Platform Support
 
@@ -10,10 +11,12 @@ Functions actively used in production integrations.
 
 | Function | Node.js | WASM | React Native | Notes |
 |----------|---------|------|--------------|-------|
-| `generateHash` | sync | sync | async | Poseidon hash |
-| `generateAudHash` | sync | sync | async | Audience hash |
-| `generateAnchor` | sync | sync | async | Threshold anchor |
-| `prove` | sync | -- | async | Requires proving key (~400 MB) |
+| `generateHash` | async | async | async | Poseidon hash |
+| `generateAudHash` | async | async | async | Audience hash |
+| `generateAnchor` | async | async | async | Threshold anchor |
+| `prove` | async | -- | async | Requires manifest-backed CRS/proving bundle |
+| `downloadRelease` | async | -- | async | Downloads/stages a flat release bundle |
+| `loadCircuitConfig` | async | -- | async | Reads release `config.json` as camelCase config |
 
 ### Utility API
 
@@ -21,15 +24,17 @@ Available for custom integrations. Not used in current production deployments.
 
 | Function | Node.js | WASM | React Native | Notes |
 |----------|---------|------|--------------|-------|
-| `generateLeafHash` | sync | sync | async | Merkle leaf hash |
+| `generateLeafHash` | async | async | async | Merkle leaf hash |
+| `normalizeCircuitConfig` | sync | sync | sync | Converts snake_case or camelCase config to facade camelCase |
 
-> `setup` and `verify` are not included in the public SDK. Trusted setup is a protocol management operation; verification is performed on-chain or server-side.
+> Trusted setup is not included in the public facade. `verify` is available in Node.js and throws `UnsupportedPlatformError` in WASM and React Native.
 
 > WASM cannot run `prove` due to memory constraints. Calling it throws an error with a message directing you to Node.js or React Native.
 
 ## Naming Conventions
 
-Node.js and WASM use **camelCase** for config fields. React Native uses **snake_case**.
+The public `@baerae/zkap-zkp` facade uses **camelCase** config fields in every runtime.
+The legacy `@baerae/zkap-zkp-react-native` package keeps its historical snake_case input shape.
 
 | Node.js / WASM | React Native |
 |-----------------|--------------|
@@ -41,13 +46,17 @@ Node.js and WASM use **camelCase** for config fields. React Native uses **snake_
 
 All other field names (`n`, `k`, `claims`) are identical across platforms.
 
+The release bundle's `config.json` is produced by zkap-circuit with snake_case
+fields. Use `loadCircuitConfig(manifestDir)` after `downloadRelease()` or
+`loadRelease()` instead of duplicating config constants in application code.
+
 ---
 
 ## CircuitConfig
 
 Circuit parameters required by most functions. The config must match the configuration used during trusted setup (CRS generation).
 
-### Node.js / WASM
+### Public facade
 
 ```typescript
 interface JsCircuitConfig {
@@ -67,7 +76,7 @@ interface JsCircuitConfig {
 }
 ```
 
-### React Native
+### Legacy React Native package
 
 ```typescript
 interface CircuitConfig {
@@ -123,23 +132,23 @@ Compute a Poseidon hash of one or more field-element strings.
 ```typescript
 import { generateHash } from '@baerae/zkap-zkp';
 
-const hash = generateHash(['0x1', '0x2', '0x3']);
+const hash = await generateHash(['0x1', '0x2', '0x3']);
 // => '0x2b7e15...'
 ```
 
 ### WASM
 
 ```typescript
-import init, { generateHash } from '@baerae/zkap-zkp-wasm';
+import { initZkap, generateHash } from '@baerae/zkap-zkp';
 
-await init();
-const hash = generateHash(['0x1', '0x2', '0x3']);
+await initZkap();
+const hash = await generateHash(['0x1', '0x2', '0x3']);
 ```
 
 ### React Native
 
 ```typescript
-import { generateHash } from '@baerae/zkap-zkp-react-native';
+import { generateHash } from '@baerae/zkap-zkp';
 
 const hash = await generateHash(['0x1', '0x2', '0x3']);
 ```
@@ -156,15 +165,15 @@ Compute per-audience Poseidon hashes and a combined audience-list hash. Used to 
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `audHashes` (Node/WASM) / `aud_hashes` (RN) | `string[]` | Per-slot hash (including padding slots, total = `numAudienceLimit`) |
-| `hAudList` (Node/WASM) / `h_aud_list` (RN) | `string` | Combined audience-list hash (`0x`-prefixed hex) |
+| `audHashes` | `string[]` | Per-slot hash (including padding slots, total = `numAudienceLimit`) |
+| `hAudList` | `string` | Combined audience-list hash (`0x`-prefixed hex) |
 
 ### Node.js
 
 ```typescript
 import { generateAudHash } from '@baerae/zkap-zkp';
 
-const result = generateAudHash(config, ['client-a', 'client-b']);
+const result = await generateAudHash(config, ['client-a', 'client-b']);
 console.log(result.hAudList);    // '0x...'
 console.log(result.audHashes);   // ['0x...', '0x...', ...]
 ```
@@ -172,20 +181,20 @@ console.log(result.audHashes);   // ['0x...', '0x...', ...]
 ### WASM
 
 ```typescript
-import init, { generateAudHash } from '@baerae/zkap-zkp-wasm';
+import { initZkap, generateAudHash } from '@baerae/zkap-zkp';
 
-await init();
-const result = generateAudHash(config, ['client-a', 'client-b']);
+await initZkap();
+const result = await generateAudHash(config, ['client-a', 'client-b']);
 ```
 
 ### React Native
 
 ```typescript
-import { generateAudHash } from '@baerae/zkap-zkp-react-native';
+import { generateAudHash } from '@baerae/zkap-zkp';
 
 const result = await generateAudHash(config, ['client-a', 'client-b']);
-console.log(result.h_aud_list);  // '0x...'
-console.log(result.aud_hashes);  // ['0x...', '0x...', ...]
+console.log(result.hAudList);    // '0x...'
+console.log(result.audHashes);   // ['0x...', '0x...', ...]
 ```
 
 ---
@@ -205,22 +214,22 @@ Compute the Merkle leaf hash for an issuer + RSA public-key modulus. Used to bui
 ```typescript
 import { generateLeafHash } from '@baerae/zkap-zkp';
 
-const leaf = generateLeafHash(config, 'https://accounts.google.com', pkModulusB64);
+const leaf = await generateLeafHash(config, 'https://accounts.google.com', pkModulusB64);
 ```
 
 ### WASM
 
 ```typescript
-import init, { generateLeafHash } from '@baerae/zkap-zkp-wasm';
+import { initZkap, generateLeafHash } from '@baerae/zkap-zkp';
 
-await init();
-const leaf = generateLeafHash(config, 'https://accounts.google.com', pkModulusB64);
+await initZkap();
+const leaf = await generateLeafHash(config, 'https://accounts.google.com', pkModulusB64);
 ```
 
 ### React Native
 
 ```typescript
-import { generateLeafHash } from '@baerae/zkap-zkp-react-native';
+import { generateLeafHash } from '@baerae/zkap-zkp';
 
 const leaf = await generateLeafHash(config, 'https://accounts.google.com', pkModulusB64);
 ```
@@ -236,14 +245,6 @@ Generate a Poseidon threshold anchor from JWT credential secrets. The anchor bin
 ### Secret
 
 ```typescript
-// Node.js / WASM
-interface JsSecret {
-  sub: string;
-  iss: string;
-  aud: string;
-}
-
-// React Native (same fields)
 interface Secret {
   sub: string;
   iss: string;
@@ -268,25 +269,137 @@ const secrets = Array.from({ length: config.n }, (_, i) => ({
   aud: 'my-client-id',
 }));
 
-const anchor = generateAnchor(config, secrets);
+const anchor = await generateAnchor(config, secrets);
 console.log(anchor.evaluations); // ['0x...', '0x...', ...]
 ```
 
 ### WASM
 
 ```typescript
-import init, { generateAnchor } from '@baerae/zkap-zkp-wasm';
+import { initZkap, generateAnchor } from '@baerae/zkap-zkp';
 
-await init();
-const anchor = generateAnchor(config, secrets);
+await initZkap();
+const anchor = await generateAnchor(config, secrets);
 ```
 
 ### React Native
 
 ```typescript
-import { generateAnchor } from '@baerae/zkap-zkp-react-native';
+import { generateAnchor } from '@baerae/zkap-zkp';
 
 const anchor = await generateAnchor(config, secrets);
+```
+
+---
+
+## downloadRelease
+
+Download a zkap-circuit flat release bundle and stage it as a local
+manifest-backed directory. Available in Node.js and React Native. Not available
+in browser/WASM because browsers cannot expose a native filesystem path to
+`prove()`.
+
+### Remote Layout
+
+```text
+<baseUrl>/
+  3-of-3-manifest.json
+  3-of-3-circuit.ar1cs
+  3-of-3-pk.bin
+  3-of-3-vk.bin
+  3-of-3-pvk.bin
+  3-of-3-Groth16Verifier.sol
+  3-of-3-config.json
+  3-of-3-SHA256SUMS
+  witness_gen.wasm
+```
+
+### Input
+
+```typescript
+interface DownloadReleaseOpts {
+  baseUrl: string;
+  shape: '1-of-1' | '3-of-3' | string;
+  cacheDir?: string;
+  expectedReleaseSha?: string;
+  force?: boolean;
+  fetch?: typeof fetch;
+  onProgress?: (progress: DownloadReleaseProgress) => void;
+}
+```
+
+`expectedReleaseSha` is optional but recommended in production. It pins the
+first 16 hex chars of SHA256 of `<shape>-SHA256SUMS`.
+Custom shape strings may contain only letters, numbers, dots, underscores, and
+hyphens.
+
+Node.js streams every downloaded artifact through SHA256 before staging. React
+Native verifies the small manifest/config hashes in JavaScript and checks
+artifact sizes during download; the native `prove()` path re-applies the
+manifest SHA gate before proving.
+
+### Output
+
+Same shape as `loadRelease()`:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `stagedDir` | `string` | Local manifest directory to pass as `manifestDir` |
+| `manifestJson` | `string` | Raw downloaded manifest JSON |
+| `shape` | `string` | Echoed release shape |
+| `releaseSha` | `string` | First 16 hex chars of SHA256 of `<shape>-SHA256SUMS` |
+
+### Example
+
+```typescript
+import { downloadRelease, loadCircuitConfig, prove } from '@baerae/zkap-zkp';
+
+const release = await downloadRelease({
+  baseUrl: 'https://static.example.com/zkap/releases/v0.1.5',
+  shape: '3-of-3',
+  expectedReleaseSha: '50aaaa8fe35fc261',
+});
+const config = await loadCircuitConfig(release.stagedDir);
+const result = await prove(config, {
+  ...request,
+  manifestDir: release.stagedDir,
+});
+```
+
+React Native uses `expo-file-system` for filesystem access. Install it with
+`npx expo install expo-file-system` when using `downloadRelease()` or
+`loadCircuitConfig()` in a mobile app.
+
+---
+
+## loadCircuitConfig / normalizeCircuitConfig
+
+`loadCircuitConfig(manifestDir)` reads `config.json` from a staged release
+directory, verifies it against `manifest.json`, and returns the public facade
+camelCase `CircuitConfig`.
+
+`normalizeCircuitConfig(input)` performs only the shape conversion/validation
+and is available in every runtime.
+
+```typescript
+import { loadCircuitConfig, normalizeCircuitConfig } from '@baerae/zkap-zkp';
+
+const config = await loadCircuitConfig(release.stagedDir);
+const sameShape = normalizeCircuitConfig({
+  max_jwt_b64_len: 1024,
+  max_payload_b64_len: 896,
+  max_aud_len: 155,
+  max_exp_len: 20,
+  max_iss_len: 93,
+  max_nonce_len: 93,
+  max_sub_len: 93,
+  n: 3,
+  k: 3,
+  tree_height: 15,
+  num_audience_limit: 5,
+  claims: ['aud', 'exp', 'iss', 'nonce', 'sub'],
+  forbidden_string: 'forbidden',
+});
 ```
 
 ---
@@ -295,50 +408,40 @@ const anchor = await generateAnchor(config, secrets);
 
 Generate Groth16 zero-knowledge proofs. **Not available in WASM.**
 
-Requires a proving key file on disk.
+Requires a manifest-backed CRS/proving bundle on disk.
 
 ### ProveRequest
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `pkPath` / `pk_path` | `string` | Absolute path to the proving key file |
-| `jwts` | `string[]` | JWT tokens (exactly `k` entries) |
-| `pkOps` / `pk_ops` | `string[]` | Base64-encoded RSA public key moduli (one per JWT) |
-| `merklePaths` / `merkle_paths` | `string[][]` | Merkle authentication paths (one per JWT) |
-| `leafIndices` / `leaf_indices` | `number[]` | Merkle leaf indices (one per JWT) |
-| `root` | `string` | Merkle root (hex or decimal field element) |
-| `anchorEvals` / `anchor_evals` | `string[]` | Anchor polynomial evaluations (from `generateAnchor`) |
-| `hanchor` | `string` | Combined anchor hash |
-| `hSignUserOp` / `h_sign_user_op` | `string` | Signed UserOperation hash |
+| `manifestDir` | `string` | Directory containing `manifest.json` and CRS artifacts |
+| `credentials` | `ProveCredential[]` | JWT credentials (exactly `k` entries) |
+| `merkleRoot` | `string` | Merkle root (hex or decimal field element) |
+| `anchor` | `string[]` | Anchor polynomial evaluations (from `generateAnchor`) |
+| `hSignUserOp` | `string` | Signed UserOperation hash |
 | `random` | `string` | Random blinding value |
-| `audHashList` / `aud_hash_list` | `string[]` | Audience hashes (from `generateAudHash`) |
 
 ### ProveResult / JsProofOutput
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `proofs` | `string[][]` | Solidity-compatible proof per JWT: `[ax, ay, bx_c1, bx_c0, by_c1, by_c0, cx, cy]` |
-| `sharedInputs` / `shared_inputs` | `string[]` | Public inputs shared across all JWTs (decimal strings) |
-| `partialRhsList` / `partial_rhs_list` | `string[]` | `partial_rhs` per JWT (decimal string) |
-| `jwtExpList` / `jwt_exp_list` | `string[]` | `jwt_exp` per JWT (decimal string) |
+| `sharedInputs` | `string[]` | Public inputs shared across all JWTs (decimal strings) |
+| `partialRhsList` | `string[]` | `partial_rhs` per JWT (decimal string) |
+| `jwtExpList` | `string[]` | `jwt_exp` per JWT (decimal string) |
 
 ### Node.js
 
 ```typescript
 import { prove } from '@baerae/zkap-zkp';
 
-const result = prove(config, {
-  pkPath: '/path/to/pk.bin',
-  jwts: [...],
-  pkOps: [...],
-  merklePaths: [...],
-  leafIndices: [...],
-  root: '...',
-  anchorEvals: anchor.evaluations,
-  hanchor: '...',
+const result = await prove(config, {
+  manifestDir: '/path/to/bundle',
+  credentials: [...],
+  merkleRoot: '...',
+  anchor: anchor.evaluations,
   hSignUserOp: '...',
   random: '...',
-  audHashList: audResult.audHashes,
 });
 
 console.log(result.proofs);        // Solidity-compatible proof arrays
@@ -348,20 +451,15 @@ console.log(result.sharedInputs);  // Shared public inputs
 ### React Native
 
 ```typescript
-import { prove } from '@baerae/zkap-zkp-react-native';
+import { prove } from '@baerae/zkap-zkp';
 
 const result = await prove(config, {
-  pk_path: '/path/to/pk.bin',
-  jwts: [...],
-  pk_ops: [...],
-  merkle_paths: [...],
-  leaf_indices: [...],
-  root: '...',
-  anchor_evals: anchor.evaluations,
-  hanchor: '...',
-  h_sign_user_op: '...',
+  manifestDir: '/path/to/bundle',
+  credentials: [...],
+  merkleRoot: '...',
+  anchor: anchor.evaluations,
+  hSignUserOp: '...',
   random: '...',
-  aud_hash_list: audResult.aud_hashes,
 });
 ```
 
@@ -373,6 +471,8 @@ All functions throw on invalid input. Common error cases:
 
 | Error | Cause |
 |-------|-------|
-| `prove() is not supported in WebAssembly` | Calling `prove` from `@baerae/zkap-zkp-wasm` |
-| `groth16Setup() is not supported` | `setup` has been removed from all SDK packages (v0.1.2+) |
-| `verify() is not supported` | `verify` has been removed from all SDK packages (v0.1.2+) |
+| `UnsupportedPlatformError` for `prove` | Calling `prove` in WebAssembly |
+| `UnsupportedPlatformError` for `downloadRelease` | Calling `downloadRelease` in WebAssembly |
+| `UnsupportedPlatformError` for `verify` | Calling `verify` outside Node.js |
+| `release SHA mismatch` | `expectedReleaseSha` does not match downloaded `<shape>-SHA256SUMS` |
+| `config.json SHA256 mismatch` | `config.json` no longer matches `manifest.json` |
