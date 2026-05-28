@@ -15,11 +15,16 @@ on:
         description: Run publish dry-runs only
         type: boolean
         default: false
+      reuse_artifacts_from_run_id:
+        description: Optional previous Release Publish run ID to reuse build artifacts from
+        type: string
+        required: false
   push:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
 
 permissions:
+  actions: read
   contents: read
   id-token: write
 
@@ -29,6 +34,7 @@ concurrency:
 
 jobs:
   build-node:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.reuse_artifacts_from_run_id == '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -131,6 +137,7 @@ jobs:
   # 2. Build React Native binaries
   # ──────────────────────────────────────────────
   build-ios:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.reuse_artifacts_from_run_id == '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -156,6 +163,8 @@ jobs:
         with:
           toolchain: stable
           targets: ${{ matrix.target }}
+      - name: Verify iOS wasm runtime
+        run: npm run check:rn-ios-runtime -- ${{ matrix.target }}
       - name: Build
         run: cargo build --release --target ${{ matrix.target }} -p zkap-uniffi-bindings
       - name: Upload artifact
@@ -166,6 +175,7 @@ jobs:
           if-no-files-found: error
 
   build-android:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.reuse_artifacts_from_run_id == '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -174,10 +184,6 @@ jobs:
             name: android-arm64
             abi: arm64-v8a
             artifact: rn-android-arm64
-          - target: armv7-linux-androideabi
-            name: android-armv7
-            abi: armeabi-v7a
-            artifact: rn-android-armv7
           - target: x86_64-linux-android
             name: android-x86_64
             abi: x86_64
@@ -197,27 +203,22 @@ jobs:
           cmdline-tools-version: "11076708"
       - name: Configure NDK cross-compilation
         run: |
-          NDK_HOME=$ANDROID_SDK_ROOT/ndk/$(ls $ANDROID_SDK_ROOT/ndk | sort -V | tail -1)
-          echo "ANDROID_NDK_HOME=$NDK_HOME" >> $GITHUB_ENV
-          TOOLCHAIN=$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin
+          NDK_HOME="$(find "$ANDROID_SDK_ROOT/ndk" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          echo "ANDROID_NDK_HOME=$NDK_HOME" >> "$GITHUB_ENV"
+          TOOLCHAIN="$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin"
 
           # Set linker, C compiler, and archiver for each ABI
           # CC_* and AR_* are required by cc-rs to compile C dependencies (e.g. mimalloc)
           case "${{ matrix.target }}" in
             aarch64-linux-android)
-              echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$TOOLCHAIN/aarch64-linux-android21-clang" >> $GITHUB_ENV
-              echo "CC_aarch64_linux_android=$TOOLCHAIN/aarch64-linux-android21-clang" >> $GITHUB_ENV
-              echo "AR_aarch64_linux_android=$TOOLCHAIN/llvm-ar" >> $GITHUB_ENV
-              ;;
-            armv7-linux-androideabi)
-              echo "CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_LINKER=$TOOLCHAIN/armv7a-linux-androideabi21-clang" >> $GITHUB_ENV
-              echo "CC_armv7_linux_androideabi=$TOOLCHAIN/armv7a-linux-androideabi21-clang" >> $GITHUB_ENV
-              echo "AR_armv7_linux_androideabi=$TOOLCHAIN/llvm-ar" >> $GITHUB_ENV
+              echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$TOOLCHAIN/aarch64-linux-android21-clang" >> "$GITHUB_ENV"
+              echo "CC_aarch64_linux_android=$TOOLCHAIN/aarch64-linux-android21-clang" >> "$GITHUB_ENV"
+              echo "AR_aarch64_linux_android=$TOOLCHAIN/llvm-ar" >> "$GITHUB_ENV"
               ;;
             x86_64-linux-android)
-              echo "CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER=$TOOLCHAIN/x86_64-linux-android21-clang" >> $GITHUB_ENV
-              echo "CC_x86_64_linux_android=$TOOLCHAIN/x86_64-linux-android21-clang" >> $GITHUB_ENV
-              echo "AR_x86_64_linux_android=$TOOLCHAIN/llvm-ar" >> $GITHUB_ENV
+              echo "CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER=$TOOLCHAIN/x86_64-linux-android21-clang" >> "$GITHUB_ENV"
+              echo "CC_x86_64_linux_android=$TOOLCHAIN/x86_64-linux-android21-clang" >> "$GITHUB_ENV"
+              echo "AR_x86_64_linux_android=$TOOLCHAIN/llvm-ar" >> "$GITHUB_ENV"
               ;;
           esac
       - name: Build
@@ -230,6 +231,7 @@ jobs:
           if-no-files-found: error
 
   assemble-ios-xcframework:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.reuse_artifacts_from_run_id == '' }}
     needs: [build-ios]
     runs-on: macos-latest
     steps:
@@ -276,6 +278,7 @@ jobs:
   # ──────────────────────────────────────────────
   publish:
     needs: [build-node, assemble-ios-xcframework, build-android]
+    if: ${{ always() && !cancelled() && ((github.event_name == 'workflow_dispatch' && inputs.reuse_artifacts_from_run_id != '') || (needs.build-node.result == 'success' && needs.assemble-ios-xcframework.result == 'success' && needs.build-android.result == 'success')) }}
     runs-on: ubuntu-latest
     environment: production
 
@@ -309,7 +312,7 @@ jobs:
         run: npm ci
 
       - name: Validate release package metadata
-        run: npm run check:release-packages -- "${{ steps.version.outputs.value }}"
+        run: node scripts/check-release-packages.mjs "${{ steps.version.outputs.value }}"
 
       - name: Verify versions are newer than npm latest
         run: npm run check:npm-latest
@@ -327,24 +330,32 @@ jobs:
         with:
           name: binary-x86_64-apple-darwin
           path: platform-packages/node-darwin-x64
+          run-id: ${{ inputs.reuse_artifacts_from_run_id || github.run_id }}
+          github-token: ${{ github.token }}
 
       - name: Download darwin-arm64 binary
         uses: actions/download-artifact@v4
         with:
           name: binary-aarch64-apple-darwin
           path: platform-packages/node-darwin-arm64
+          run-id: ${{ inputs.reuse_artifacts_from_run_id || github.run_id }}
+          github-token: ${{ github.token }}
 
       - name: Download linux-x64-gnu binary
         uses: actions/download-artifact@v4
         with:
           name: binary-x86_64-unknown-linux-gnu
           path: platform-packages/node-linux-x64-gnu
+          run-id: ${{ inputs.reuse_artifacts_from_run_id || github.run_id }}
+          github-token: ${{ github.token }}
 
       - name: Download linux-x64-musl binary
         uses: actions/download-artifact@v4
         with:
           name: binary-x86_64-unknown-linux-musl
           path: platform-packages/node-linux-x64-musl
+          run-id: ${{ inputs.reuse_artifacts_from_run_id || github.run_id }}
+          github-token: ${{ github.token }}
 
       - name: Copy Linux binaries into sdk-node for validation and packing
         run: |
@@ -359,11 +370,11 @@ jobs:
         if: ${{ github.event_name != 'workflow_dispatch' || !inputs.skip_tests }}
         run: npm --workspace packages/sdk-node test
 
-      - name: Build sdk
-        run: npm --workspace packages/sdk run build
-
       - name: Build sdk-wasm
         run: npm --workspace packages/sdk-wasm run build
+
+      - name: Build sdk
+        run: npm --workspace packages/sdk run build
 
       - name: Run sdk tests
         if: ${{ github.event_name != 'workflow_dispatch' || !inputs.skip_tests }}
@@ -375,32 +386,27 @@ jobs:
         with:
           name: rn-ios-xcframework
           path: packages/sdk-react-native/ios/ZkapZkp.xcframework
+          run-id: ${{ inputs.reuse_artifacts_from_run_id || github.run_id }}
+          github-token: ${{ github.token }}
 
       - name: Download Android arm64 .so
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
         with:
           name: rn-android-arm64
           path: packages/sdk-react-native/android/libs/arm64-v8a
-
-      - name: Download Android armv7 .so
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
-        with:
-          name: rn-android-armv7
-          path: packages/sdk-react-native/android/libs/armeabi-v7a
+          run-id: ${{ inputs.reuse_artifacts_from_run_id || github.run_id }}
+          github-token: ${{ github.token }}
 
       - name: Download Android x86_64 .so
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
         with:
           name: rn-android-x86_64
           path: packages/sdk-react-native/android/libs/x86_64
+          run-id: ${{ inputs.reuse_artifacts_from_run_id || github.run_id }}
+          github-token: ${{ github.token }}
 
       - name: Verify React Native package binaries
-        run: |
-          test -d packages/sdk-react-native/ios/ZkapZkp.xcframework || (echo "Missing iOS XCFramework" && exit 1)
-          test -f packages/sdk-react-native/android/libs/arm64-v8a/libzkap_uniffi_bindings.so || (echo "Missing Android arm64 .so" && exit 1)
-          test -f packages/sdk-react-native/android/libs/armeabi-v7a/libzkap_uniffi_bindings.so || (echo "Missing Android armv7 .so" && exit 1)
-          test -f packages/sdk-react-native/android/libs/x86_64/libzkap_uniffi_bindings.so || (echo "Missing Android x86_64 .so" && exit 1)
-          echo "All React Native binaries verified"
+        run: node scripts/check-rn-native-artifacts.mjs
 
       - name: Publish dry-run for all packages
         run: |
