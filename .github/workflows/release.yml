@@ -305,9 +305,6 @@ jobs:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Upgrade npm for trusted publishing
-        run: npm install -g npm@latest
-
       - name: Install dependencies
         run: npm ci
 
@@ -421,6 +418,9 @@ jobs:
           npm publish ./packages/sdk-wasm --dry-run --access public
           npm publish ./packages/sdk-react-native --dry-run --access public
           npm publish ./packages/sdk --dry-run --access public
+
+      - name: Upgrade npm for trusted publishing
+        run: npm install -g npm@latest
 
       - name: Publish to npm
         if: ${{ github.event_name != 'workflow_dispatch' || !inputs.dry_run_only }}
