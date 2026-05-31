@@ -8,12 +8,29 @@ members = [
 ]
 
 [workspace.dependencies]
+# Declared source stays the git `rev` so the final state can switch to a
+# release-tag semver dep once zkap-circuit cuts a release. The `[patch]`
+# section below overrides this for the local P1 build — see its comment.
 zkap-service = { git = "https://github.com/snp-labs/zkap-circuit.git", rev = "d600a8782f2ae5be89755b3de4dde80473741356", default-features = false }
-ark-ar1cs = { git = "https://github.com/baerae-zkap/ark-ar1cs", rev = "ae071aeb704c58721ee00bf3f8b1b15896bae8af" }
 mimalloc = { version = "0.1.48", default-features = false }
 napi = { version = "2.16", features = ["napi8"] }
 napi-derive = { version = "2.16" }
 rayon = "1"
+
+# Local path-patch for the zkap-circuit/zkap-zkp decoupling (P2).
+#
+# The P1 boundary in ../zkap-circuit (branch
+# `feat/zkap-service-semver-boundary`: semver-stable public API +
+# rayon-parallel `prove_bundles` / `verify`) is committed locally but NOT
+# pushed, so the declared git `rev` above cannot resolve it yet. Point
+# `zkap-service` at the local P1 checkout so the build picks up
+# `prove_bundles` / `verify` / `PreflightMode`. Do NOT push this patch.
+#
+# FINAL STATE: drop this `[patch]` and bump the declared `zkap-service`
+# dependency above to a release-tag semver version once zkap-circuit cuts
+# a release containing the P1 boundary.
+[patch."https://github.com/snp-labs/zkap-circuit.git"]
+zkap-service = { path = "../zkap-circuit/crates/service" }
 
 [workspace.metadata.ark]
 # parallel feature는 zkap-circuit workspace.dependencies에서 default-features=false로 비활성화됨

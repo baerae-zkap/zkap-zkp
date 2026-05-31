@@ -1,10 +1,11 @@
 //! ZKAP release staging utilities.
 //!
-//! Native proof generation is owned by `ark-ar1cs`. Downstream SDKs load
-//! `zkap-service::ArtifactSet` and pass its prepared artifacts to
-//! `ark_ar1cs::prove_with_mode(..., VerifyAfter)` directly. This crate now
-//! only stages flat zkap-circuit release bundles into manifest-compatible
-//! directories.
+//! Native proof generation runs through the `zkap-service` façade:
+//! downstream SDKs load `zkap_service::ArtifactSet` and call
+//! `zkap_service::prove_bundles(..., PreflightMode::VerifyAfter)` /
+//! `zkap_service::verify(...)`. `ark-ar1cs` is an internal detail of the
+//! façade, no longer a direct SDK dependency. This crate only stages flat
+//! zkap-circuit release bundles into manifest-compatible directories.
 
 #![deny(unsafe_code)]
 #![warn(missing_docs)]

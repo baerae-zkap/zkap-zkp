@@ -7,7 +7,14 @@ edition = "2021"
 crate-type = ["staticlib", "cdylib"]
 
 [dependencies]
-zkap-service = { workspace = true, features = ["host-primitives", "manifest", "artifact-loader"] }
+# `native-prove` is required for the `zkap_service::prove_bundles` façade
+# entry point. It pulls in artifact-loader + native-witness, so the
+# separate `host-primitives` / `manifest` / `artifact-loader` flags are
+# subsumed. `setup` is also enabled: with `default-features = false`,
+# `native-prove` alone leaves the always-compiled `groth16::setup` module
+# without its `setup`-gated deps (`rand_chacha`, the `crs` module), so the
+# build only resolves with `setup` on — it matches zkap-service's `default`.
+zkap-service = { workspace = true, features = ["native-prove", "setup"] }
 uniffi = { version = "0.31", features = ["cli"] }
 thiserror = "1"
 mimalloc = { workspace = true }
@@ -22,13 +29,12 @@ sha2 = "0.10"
 # iOS production witness synthesis is handled by the React Native package's
 # WKWebView runner, then proof generation resumes here through
 # `prove_from_witness_bundles`. Wasmi is kept behind a diagnostic feature only.
-# Native Groth16 proving delegates directly to
-# `ark_ar1cs::prove_with_mode(..., VerifyAfter)` using `ArtifactSet`'s
-# prepared matrices.
+# Native Groth16 proving is now routed through
+# `zkap_service::prove_bundles` (rayon-parallel inside the façade); this
+# crate no longer depends on `ark-ar1cs` or constructs its own RNG/prove loop.
+# `ark-serialize` remains only to deserialize the wasm witness bundles.
 zkap-zkp-prover = { path = "../prover" }
-ark-ar1cs = { workspace = true }
 ark-serialize = "0.6"
-ark-std = "0.6"
 serde_json = "1"
 
 [target.'cfg(any(target_os = "ios", target_os = "tvos", target_os = "watchos", target_os = "visionos"))'.dependencies]

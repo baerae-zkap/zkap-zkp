@@ -4,19 +4,13 @@ uniffi::setup_scaffolding!();
 use std::path::{Component, Path};
 
 #[cfg(feature = "wasm-witness")]
-use ark_ar1cs::{prove_with_mode as ar1cs_prove_with_mode, PreflightMode as Ar1csPreflightMode};
-#[cfg(feature = "wasm-witness")]
 use ark_serialize::CanonicalDeserialize;
-#[cfg(feature = "wasm-witness")]
-use ark_std::rand::rngs::OsRng;
 #[cfg(feature = "wasm-witness")]
 use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 #[cfg(feature = "wasm-witness")]
 use sha2::{Digest, Sha256};
 #[cfg(feature = "wasm-witness")]
 use zkap_service::manifest::Manifest;
-#[cfg(feature = "wasm-witness")]
-use zkap_service::types::{BN254, F};
 #[cfg(feature = "wasm-witness")]
 use zkap_service::WitnessBundle;
 use zkap_service::{
@@ -25,7 +19,9 @@ use zkap_service::{
     GenerateAnchorRequest, HashRequest, IssuerKeyHashRequest,
 };
 #[cfg(feature = "wasm-witness")]
-use zkap_service::{ArtifactSet, ProveCredential, ProveRequest, ProveResponse};
+use zkap_service::{
+    prove_bundles, ArtifactSet, PreflightMode, ProveCredential, ProveRequest, ProveResponse,
+};
 
 #[global_allocator]
 static ALLOC: mimalloc::MiMalloc = mimalloc::MiMalloc;
@@ -375,8 +371,9 @@ pub fn prove_from_witness_bundle_file(
 ///
 /// Loads the manifest-validated CRS bundle from `request.manifest_dir`,
 /// runs witness synthesis inside the release-provided `witness_gen.wasm`,
-/// then runs the circuit-agnostic
-/// `ark_ar1cs::prove_with_mode(..., VerifyAfter)` against the bundled proving key.
+/// then routes the synthesized bundles through the
+/// `zkap_service::prove_bundles(..., PreflightMode::VerifyAfter)` façade
+/// against the bundled proving key.
 #[uniffi::export]
 pub fn prove(
     _config: ZkapCircuitConfig,
@@ -672,33 +669,16 @@ fn prove_from_witness_bundles_inner(
     artifact_set: ArtifactSet,
     bundles: Vec<WitnessBundle>,
 ) -> Result<ZkapProofOutput, ZkapError> {
-    // Split each bundle into (full_assignment, public_inputs) before
-    // proof generation so public inputs can be returned alongside the
-    // `ark_ar1cs` proofs.
-    let mut public_inputs: Vec<Vec<F>> = Vec::with_capacity(bundles.len());
-    let mut assignments: Vec<Vec<F>> = Vec::with_capacity(bundles.len());
-    for bundle in bundles {
-        public_inputs.push(bundle.public_inputs);
-        assignments.push(bundle.full_assignment);
-    }
-
-    let mut rng = OsRng;
-    let mut proofs = Vec::with_capacity(assignments.len());
-    for assignment in &assignments {
-        proofs.push(
-            ar1cs_prove_with_mode::<BN254, _>(
-                &artifact_set.pk,
-                &artifact_set.prepared_arcs,
-                assignment,
-                &mut rng,
-                Ar1csPreflightMode::VerifyAfter,
-            )
-            .map_err(|e| ZkapError::ApplicationError {
-                message: format!("ark_ar1cs prove: {e}"),
-            })?,
-        );
-    }
-    let response: ProveResponse = (proofs, public_inputs).into();
+    // Route the synthesized bundles through the zkap-service façade. The
+    // per-bundle rayon parallelism and `ProveResponse` assembly now live
+    // inside `prove_bundles`; this crate no longer borrows `pk` /
+    // `prepared_arcs` or constructs its own RNG / prove loop.
+    let response: ProveResponse =
+        prove_bundles(&artifact_set, bundles, PreflightMode::VerifyAfter).map_err(|e| {
+            ZkapError::ApplicationError {
+                message: format!("prove_bundles: {e}"),
+            }
+        })?;
 
     let proofs_serialized: Vec<Vec<String>> = response
         .proofs

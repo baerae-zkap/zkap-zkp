@@ -9,24 +9,17 @@ use std::sync::{
 use std::thread;
 use std::time::{Duration, Instant};
 
-use ark_ar1cs::{
-    prove_with_mode as ar1cs_prove_with_mode, PreflightMode as Ar1csPreflightMode, PreparedArcs,
-    ProverError as Ar1csProverError,
-};
-use ark_bn254::{Bn254, Fq, Fq2, G1Affine, G2Affine};
+use ark_bn254::{Fq, Fq2, G1Affine, G2Affine};
 use ark_ff::PrimeField;
-use ark_groth16::{Groth16, Proof, ProvingKey};
 use ark_serialize::CanonicalDeserialize;
-use ark_std::rand::rngs::OsRng;
 use napi_derive::napi;
-use rayon::prelude::*;
 use zkap_service::manifest::Manifest;
-use zkap_service::types::F;
 use zkap_service::{
     generate_anchor as service_generate_anchor, generate_audience_hashes, generate_issuer_key_hash,
-    generate_poseidon_hash, AnchorSecret, ArtifactLoadTiming, ArtifactSet, AudienceHashRequest,
-    CircuitConfig, GenerateAnchorRequest, HashRequest, IssuerKeyHashRequest, ProveCredential,
-    ProveRequest, ProveResponse, WitnessBundle,
+    generate_poseidon_hash, prove_bundles, verify as service_verify, AnchorSecret,
+    ArtifactLoadTiming, ArtifactSet, AudienceHashRequest, CircuitConfig, GenerateAnchorRequest,
+    HashRequest, IssuerKeyHashRequest, PreflightMode, Proof, ProveCredential, ProveRequest,
+    ProveResponse, WitnessBundle, BN254, F,
 };
 
 struct CachedWitnessModule {
@@ -83,8 +76,12 @@ fn js_config_to_native(c: JsCircuitConfig) -> CircuitConfig {
 }
 
 struct CachedProver {
-    pk: ProvingKey<Bn254>,
-    prepared_arcs: PreparedArcs<F>,
+    /// The loaded artifact set. It internally holds the proving key and
+    /// prepared `.ar1cs` matrices; proving is routed through
+    /// `zkap_service::prove_bundles(&artifact_set, ...)` and verification
+    /// through `zkap_service::verify(&artifact_set, ...)`, so this crate
+    /// never borrows `pk` / `prepared_arcs` / `pvk` directly.
+    artifact_set: ArtifactSet,
     cfg: CircuitConfig,
     witness_gen_wasm: CachedWitnessModule,
 }
@@ -142,15 +139,15 @@ fn load_prepared_artifacts(dir: &Path) -> napi::Result<PreparedArtifactsLoad> {
     let wasm_compile_ms = elapsed_ms(wasm_compile_start);
 
     let cfg = artifact_set.cfg.clone();
+    // The loaded `ArtifactSet` already holds the proving key and prepared
+    // matrices internally; cache it whole and let `zkap_service::prove_bundles`
+    // borrow them. There is no longer a separate field-extraction step.
     let prepared_start = Instant::now();
-    let pk = artifact_set.pk;
-    let prepared_arcs = artifact_set.prepared_arcs;
     let prepared_ms = elapsed_ms(prepared_start);
 
     Ok(PreparedArtifactsLoad {
         prepared: Arc::new(CachedProver {
-            pk,
-            prepared_arcs,
+            artifact_set,
             cfg,
             witness_gen_wasm,
         }),
@@ -262,13 +259,6 @@ struct RssStats {
     delta_mb: f64,
 }
 
-#[derive(Debug)]
-struct TimedResult<T> {
-    value: T,
-    ms: f64,
-    rss: Option<RssStats>,
-}
-
 fn bytes_to_mib(bytes: u64) -> f64 {
     bytes as f64 / (1024.0 * 1024.0)
 }
@@ -315,85 +305,12 @@ fn measure_timed_with_peak_rss<T, E>(
     (result, ms, rss)
 }
 
-fn env_flag(name: &str) -> bool {
-    std::env::var(name)
-        .map(|value| {
-            let value = value.trim().to_ascii_lowercase();
-            !(value.is_empty() || value == "0" || value == "false" || value == "no")
-        })
-        .unwrap_or(false)
-}
-
-fn prove_assignments_sequential(
-    pk: &ProvingKey<Bn254>,
-    prepared_arcs: &PreparedArcs<F>,
-    assignments: &[Vec<F>],
-) -> Result<Vec<Proof<Bn254>>, Ar1csProverError> {
-    let mut rng = OsRng;
-    let mut proofs = Vec::with_capacity(assignments.len());
-    for assignment in assignments {
-        proofs.push(ar1cs_prove_with_mode::<Bn254, _>(
-            pk,
-            prepared_arcs,
-            assignment,
-            &mut rng,
-            Ar1csPreflightMode::VerifyAfter,
-        )?);
-    }
-    Ok(proofs)
-}
-
-fn prove_assignments_parallel(
-    pk: &ProvingKey<Bn254>,
-    prepared_arcs: &PreparedArcs<F>,
-    assignments: &[Vec<F>],
-) -> Result<Vec<Proof<Bn254>>, Ar1csProverError> {
-    assignments
-        .par_iter()
-        .map(|assignment| {
-            let mut rng = OsRng;
-            ar1cs_prove_with_mode::<Bn254, _>(
-                pk,
-                prepared_arcs,
-                assignment,
-                &mut rng,
-                Ar1csPreflightMode::VerifyAfter,
-            )
-        })
-        .collect()
-}
-
-fn measure_proof_run(
-    pk: &ProvingKey<Bn254>,
-    prepared_arcs: &PreparedArcs<F>,
-    assignments: &[Vec<F>],
-    parallel: bool,
-) -> Result<TimedResult<Vec<Proof<Bn254>>>, Ar1csProverError> {
-    let (result, ms, rss) = measure_timed_with_peak_rss(|| {
-        if parallel {
-            prove_assignments_parallel(pk, prepared_arcs, assignments)
-        } else {
-            prove_assignments_sequential(pk, prepared_arcs, assignments)
-        }
-    });
-    result.map(|value| TimedResult { value, ms, rss })
-}
-
 fn rss_peak_mb(rss: Option<RssStats>) -> Option<f64> {
     rss.map(|stats| stats.peak_mb)
 }
 
 fn rss_delta_mb(rss: Option<RssStats>) -> Option<f64> {
     rss.map(|stats| stats.delta_mb)
-}
-
-fn max_optional_f64(a: Option<f64>, b: Option<f64>) -> Option<f64> {
-    match (a, b) {
-        (Some(a), Some(b)) => Some(a.max(b)),
-        (Some(a), None) => Some(a),
-        (None, Some(b)) => Some(b),
-        (None, None) => None,
-    }
 }
 
 fn js_proof_request_to_native(request: JsProofRequest) -> ProveRequest {
@@ -730,9 +647,11 @@ fn proof_output_from_response(result: ProveResponse, timing: JsProveTiming) -> J
 ///
 /// Loads the manifest-validated CRS bundle from `request.manifest_dir`,
 /// runs witness synthesis inside the release-provided `witness_gen.wasm`,
-/// then runs the circuit-agnostic
-/// `ark_ar1cs::prove_with_mode(..., VerifyAfter)` against the bundled
-/// proving key and prepared matrices.
+/// then routes the synthesized bundles through the
+/// `zkap_service::prove_bundles(..., PreflightMode::VerifyAfter)` façade,
+/// which proves each bundle (rayon-parallel, order-preserving) against
+/// the bundled proving key and prepared matrices and assembles the
+/// canonical `ProveResponse`.
 #[napi]
 pub fn prove(_config: JsCircuitConfig, request: JsProofRequest) -> napi::Result<JsProofOutput> {
     let total_start = Instant::now();
@@ -747,75 +666,20 @@ pub fn prove(_config: JsCircuitConfig, request: JsProofRequest) -> napi::Result<
     let (bundles, backend, wasm_timing) = (output.bundles, "wasm", Some(output.timing));
     let synthesize_ms = elapsed_ms(synth_start);
 
-    // Split each bundle into (full_assignment, public_inputs) before
-    // proof generation so public inputs can be returned alongside the
-    // `ark_ar1cs` proofs.
-    let mut public_inputs: Vec<Vec<F>> = Vec::with_capacity(bundles.len());
-    let mut assignments: Vec<Vec<F>> = Vec::with_capacity(bundles.len());
-    for bundle in bundles {
-        public_inputs.push(bundle.public_inputs);
-        assignments.push(bundle.full_assignment);
-    }
-
-    let compare_parallel = env_flag("COMPARE_PARALLEL_PROVE");
-    let use_parallel = env_flag("ZKAP_PROVE_PARALLEL");
-    let prove_phase_start = Instant::now();
-    let (proofs_out, proof_mode, proof_peak_rss_mb, proof_peak_rss_delta_mb, parallel_comparison) =
-        if compare_parallel {
-            let sequential =
-                measure_proof_run(&prepared.pk, &prepared.prepared_arcs, &assignments, false)
-                    .map_err(|e| {
-                        napi::Error::from_reason(format!("ark_ar1cs sequential prove: {e}"))
-                    })?;
-            let parallel =
-                measure_proof_run(&prepared.pk, &prepared.prepared_arcs, &assignments, true)
-                    .map_err(|e| {
-                        napi::Error::from_reason(format!("ark_ar1cs parallel prove: {e}"))
-                    })?;
-            let sequential_peak = rss_peak_mb(sequential.rss);
-            let parallel_peak = rss_peak_mb(parallel.rss);
-            let comparison = JsParallelProveComparison {
-                sequential_prove_ms: sequential.ms,
-                sequential_peak_rss_mb: sequential_peak,
-                sequential_peak_rss_delta_mb: rss_delta_mb(sequential.rss),
-                parallel_prove_ms: parallel.ms,
-                parallel_peak_rss_mb: parallel_peak,
-                parallel_peak_rss_delta_mb: rss_delta_mb(parallel.rss),
-                prove_ms_delta: parallel.ms - sequential.ms,
-                peak_rss_mb_delta: match (sequential_peak, parallel_peak) {
-                    (Some(seq), Some(par)) => Some(par - seq),
-                    _ => None,
-                },
-            };
-            (
-                sequential.value,
-                "compare-sequential-submit".to_string(),
-                max_optional_f64(sequential_peak, parallel_peak),
-                max_optional_f64(rss_delta_mb(sequential.rss), rss_delta_mb(parallel.rss)),
-                Some(comparison),
-            )
-        } else {
-            let proof_run = measure_proof_run(
-                &prepared.pk,
-                &prepared.prepared_arcs,
-                &assignments,
-                use_parallel,
-            )
-            .map_err(|e| napi::Error::from_reason(format!("ark_ar1cs prove: {e}")))?;
-            (
-                proof_run.value,
-                if use_parallel {
-                    "parallel".to_string()
-                } else {
-                    "sequential".to_string()
-                },
-                rss_peak_mb(proof_run.rss),
-                rss_delta_mb(proof_run.rss),
-                None,
-            )
-        };
-    let prove_ms = elapsed_ms(prove_phase_start);
-    let result: ProveResponse = (proofs_out, public_inputs).into();
+    // Route the synthesized bundles through the zkap-service façade. The
+    // per-bundle rayon parallelism and `ProveResponse` assembly now live
+    // inside `prove_bundles`; this crate no longer borrows `pk` /
+    // `prepared_arcs` or runs its own prove loop. The seq-vs-parallel
+    // benchmark knob (`COMPARE_PARALLEL_PROVE` / `ZKAP_PROVE_PARALLEL`) is
+    // gone — proving is always façade-parallel — so `parallel_comparison`
+    // is always `None`. The `prove_ms` / peak-RSS fields are filled from
+    // the coarse wall-clock + RSS measure taken around `prove_bundles`;
+    // fine-grained per-proof ar1cs timing is no longer available.
+    let (result, prove_ms, prove_rss) = measure_timed_with_peak_rss(|| {
+        prove_bundles(&prepared.artifact_set, bundles, PreflightMode::VerifyAfter)
+    });
+    let result: ProveResponse =
+        result.map_err(|e| napi::Error::from_reason(format!("prove_bundles: {e}")))?;
 
     let total_ms = elapsed_ms(total_start);
     Ok(proof_output_from_response(
@@ -826,13 +690,13 @@ pub fn prove(_config: JsCircuitConfig, request: JsProofRequest) -> napi::Result<
             prove_ms,
             total_ms,
             backend: backend.to_string(),
-            proof_mode,
-            proof_peak_rss_mb,
-            proof_peak_rss_delta_mb,
+            proof_mode: "facade-parallel".to_string(),
+            proof_peak_rss_mb: rss_peak_mb(prove_rss),
+            proof_peak_rss_delta_mb: rss_delta_mb(prove_rss),
             wasm_instantiate_ms: wasm_timing.as_ref().map(|timing| timing.instantiate_ms),
             wasm_call_ms: wasm_timing.as_ref().map(|timing| timing.call_ms),
             witness_deserialize_ms: wasm_timing.as_ref().map(|timing| timing.deserialize_ms),
-            parallel_comparison,
+            parallel_comparison: None,
         },
     ))
 }
@@ -915,8 +779,8 @@ pub struct JsVerifyOutput {
 /// the canonical 8-element public-input vector
 /// `[hanchor, h_a, root, h_sign_user_op, jwt_exp[i], partial_rhs[i],
 ///   lhs, h_aud_list]` from `proofOutput`, and runs
-/// `ark_groth16::Groth16::<Bn254>::verify_proof` against `pvk` for
-/// every entry.
+/// `zkap_service::verify` (which wraps the bundled prepared verifying
+/// key) against every entry, so this crate never borrows `pvk` directly.
 ///
 /// `manifestDir` is the same path used by `prove`. The manifest
 /// SHA gate (`ArtifactSet::load`) is re-applied so a bundle that
@@ -957,8 +821,10 @@ pub fn verify(manifest_dir: String, proof_output: JsProofOutput) -> napi::Result
         )
         .map_err(|e| napi::Error::from_reason(format!("parse public_inputs[{i}]: {e}")))?;
 
-        let ok =
-            Groth16::<Bn254>::verify_proof(&artifact_set.pvk, &proof, &pub_inputs).unwrap_or(false);
+        // A verifier-level error (malformed inputs) collapses to `false`
+        // here, matching the pre-migration `unwrap_or(false)` semantics:
+        // the proof simply did not verify against this verifier.
+        let ok = service_verify(&artifact_set, &proof, &pub_inputs).unwrap_or(false);
         results.push(ok);
     }
 
@@ -978,7 +844,7 @@ fn fr_from_hex(s: &str) -> Result<F, String> {
     Ok(F::from_be_bytes_mod_order(&bytes))
 }
 
-fn parse_proof_strings(p: &[String]) -> Result<Proof<Bn254>, String> {
+fn parse_proof_strings(p: &[String]) -> Result<Proof<BN254>, String> {
     if p.len() != 8 {
         return Err(format!("proof must have 8 field elements, got {}", p.len()));
     }
