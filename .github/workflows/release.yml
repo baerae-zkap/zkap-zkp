@@ -402,6 +402,13 @@ jobs:
           run-id: ${{ inputs.reuse_artifacts_from_run_id || github.run_id }}
           github-token: ${{ github.token }}
 
+      - name: Generate React Native bindings
+        # Generated UniFFI bindings are no longer committed (regenerated at
+        # prepack); produce them here so the verify/smoke/publish steps below
+        # see them. Checksums are interface-derived, so a host debug build
+        # matches the downloaded xcframework built from the same commit.
+        run: node scripts/generate-rn-bindings.mjs
+
       - name: Verify React Native package binaries
         run: node scripts/check-rn-native-artifacts.mjs
 
