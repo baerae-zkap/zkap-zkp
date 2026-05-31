@@ -235,6 +235,22 @@ if (iosArtifacts.length === expectedIosArtifacts.length) {
   )
 }
 
+// Generated UniFFI bindings are not committed (see .gitignore); they are produced
+// by `generate:ubrn` at prepack time. Fail loudly if a publish would ship without
+// them — a binding/native checksum mismatch is exactly the 0.1.6 on-device break.
+const generatedBindings = [
+  'src/generated/zkap_uniffi_bindings.ts',
+  'src/generated/zkap_uniffi_bindings-ffi.ts',
+  'cpp/generated/zkap_uniffi_bindings.cpp',
+  'cpp/generated/zkap_uniffi_bindings.hpp',
+]
+const generatedArtifacts = []
+for (const path of generatedBindings) {
+  checkPackagedPath(path)
+  const artifact = checkFile(path)
+  if (artifact) generatedArtifacts.push(artifact)
+}
+
 for (const warning of warnings) {
   console.warn(`WARN: ${warning}`)
 }
@@ -247,7 +263,7 @@ if (errors.length > 0) {
   process.exit(1)
 }
 
-for (const artifact of [...androidArtifacts, ...iosArtifacts]) {
+for (const artifact of [...androidArtifacts, ...iosArtifacts, ...generatedArtifacts]) {
   console.log(`${rel(artifact.absolute)} (${artifact.stat.size} bytes)`)
 }
 console.log('React Native native artifacts validated')

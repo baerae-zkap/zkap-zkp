@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-06-01
+
+### Fixed
+
+- **`@baerae/zkap-zkp-react-native` UniFFI bindings can no longer drift from the shipped native library.** The generated TypeScript/C++ bindings (`src/generated/`, `cpp/generated/`) are no longer committed; they are regenerated from the Rust crate at `prepack` (via `scripts/generate-rn-bindings.mjs`, which runs `uniffi-bindgen-react-native` from the crate directory) on every publish, so their embedded FFI checksums always match the bundled `ZkapZkp.xcframework`. In `0.1.6` the committed bindings had drifted: the P2 zkap-service façade changed the `prove` interface but the bindings were never regenerated, so the published TypeScript expected `prove` checksum `35511` while the shipped xcframework returned `59563` — breaking every on-device `prove()` with an `ApiChecksumMismatch` ("incompatible Uniffi versions") error.
+
+### Changed
+
+- **`@baerae/zkap-zkp-react-native` WKWebView witness runner now surfaces `error.message`.** The inline `fail()` handler posts `error.message` (in addition to `error.stack`) instead of only `error.stack`, so wasm witness-synthesis rejections report the actual constraint detail rather than just a stack trace.
+
 ## [0.1.6] - 2026-05-29
 
 ### Removed (BREAKING)
