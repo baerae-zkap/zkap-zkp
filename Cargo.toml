@@ -8,8 +8,18 @@ members = [
 ]
 
 [workspace.dependencies]
-zkap-service = { git = "https://github.com/snp-labs/zkap-circuit.git", rev = "d600a8782f2ae5be89755b3de4dde80473741356", default-features = false }
-ark-ar1cs = { git = "https://github.com/baerae-zkap/ark-ar1cs", rev = "ae071aeb704c58721ee00bf3f8b1b15896bae8af" }
+# Decoupling FINAL FORM: depend on the semver-stable zkap-service public
+# boundary from the published release tag — no git `rev` pin, no local
+# `[patch]`.
+#
+# Supply-chain: git tags are mutable, but the committed Cargo.lock pins the
+# resolved commit (e79624e5), so CI / published / `--locked` / normal
+# `cargo build` are unaffected by an upstream re-tag. Only an explicit
+# `cargo update -p zkap-service` re-resolves the tag — do NOT run it without
+# auditing the new commit range, then bump this tag deliberately. (Cargo
+# rejects `tag` + `rev` together, so we keep the readable `tag` + the
+# lockfile commit-pin rather than a bare `rev`.)
+zkap-service = { git = "https://github.com/snp-labs/zkap-circuit.git", tag = "v0.1.1-rc.2", default-features = false }
 mimalloc = { version = "0.1.48", default-features = false }
 napi = { version = "2.16", features = ["napi8"] }
 napi-derive = { version = "2.16" }

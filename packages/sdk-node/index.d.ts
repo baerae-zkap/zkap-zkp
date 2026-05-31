@@ -222,8 +222,11 @@ export declare function prepareProver(manifestDir: string): JsPrepareProverResul
  *
  * Loads the manifest-validated CRS bundle from `request.manifest_dir`,
  * runs witness synthesis inside the release-provided `witness_gen.wasm`,
- * then runs the circuit-agnostic
- * `ark_ar1cs::prove_with_mode(..., VerifyAfter)` against the bundled proving key.
+ * then routes the synthesized bundles through the
+ * `zkap_service::prove_bundles(..., PreflightMode::VerifyAfter)` façade,
+ * which proves each bundle (rayon-parallel, order-preserving) against
+ * the bundled proving key and prepared matrices and assembles the
+ * canonical `ProveResponse`.
  */
 export declare function prove(config: JsCircuitConfig, request: JsProofRequest): JsProofOutput
 /** Inputs for `loadRelease`. */
@@ -298,8 +301,8 @@ export interface JsVerifyOutput {
  * the canonical 8-element public-input vector
  * `[hanchor, h_a, root, h_sign_user_op, jwt_exp[i], partial_rhs[i],
  *   lhs, h_aud_list]` from `proofOutput`, and runs
- * `ark_groth16::Groth16::<Bn254>::verify_proof` against `pvk` for
- * every entry.
+ * `zkap_service::verify` (which wraps the bundled prepared verifying
+ * key) against every entry, so this crate never borrows `pvk` directly.
  *
  * `manifestDir` is the same path used by `prove`. The manifest
  * SHA gate (`ArtifactSet::load`) is re-applied so a bundle that
