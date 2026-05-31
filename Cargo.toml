@@ -8,9 +8,14 @@ members = [
 ]
 
 [workspace.dependencies]
-# Declared source stays the git `rev` so the final state can switch to a
-# release-tag semver dep once zkap-circuit cuts a release. The `[patch]`
-# section below overrides this for the local P1 build — see its comment.
+# Declared as the existing git `rev` (d600a878, resolvable on the remote) so
+# the build is robust; the `[patch]` below overrides it with the local P1
+# checkout. The decoupling's FINAL FORM is a semver TAG dep — once
+# zkap-circuit publishes the tag, replace this line with:
+#   zkap-service = { git = "https://github.com/snp-labs/zkap-circuit.git", tag = "v0.1.1-rc.2", default-features = false }
+# and delete the `[patch]` block below. (We keep `rev` rather than declaring
+# the not-yet-published `tag` because cargo resolves the git ref and errors on
+# a missing tag even when the dep is patched out.)
 zkap-service = { git = "https://github.com/snp-labs/zkap-circuit.git", rev = "d600a8782f2ae5be89755b3de4dde80473741356", default-features = false }
 mimalloc = { version = "0.1.48", default-features = false }
 napi = { version = "2.16", features = ["napi8"] }
