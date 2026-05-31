@@ -8,7 +8,7 @@ import {
 import type { CircuitConfig } from './types';
 
 export * from './errors';
-export { ZKAP_CIRCUIT_COMMIT, normalizeCircuitConfig } from './release-shared';
+export { normalizeCircuitConfig } from './release-shared';
 
 export type {
   AnchorResult,
