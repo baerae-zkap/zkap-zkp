@@ -165,7 +165,7 @@ static NSMutableSet<ZkapWitnessRunner *> *ZkapActiveWitnessRunners() {
     [html appendString:@"const input = JSON.parse(inputJson);\n"];
     [html appendString:@"const runId = input.run_id;\n"];
     [html appendString:@"function post(message){ window.webkit.messageHandlers.zkapWitness.postMessage(message); }\n"];
-    [html appendString:@"function fail(error){ const message = error && error.stack ? error.stack : String(error); post({type:'error', run_id:runId, message}); }\n"];
+    [html appendString:@"function fail(error){ const message = ((error && error.message) ? error.message : '') + ((error && error.stack) ? ('\\n' + error.stack) : '') || String(error); post({type:'error', run_id:runId, message}); }\n"];
     [html appendString:@"function b64ToBytes(b64){ const binary = atob(b64); const bytes = new Uint8Array(binary.length); for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i); return bytes; }\n"];
     [html appendString:@"function utf8(bytes){ if (typeof TextDecoder !== 'undefined') return new TextDecoder().decode(bytes); let out = ''; for (let i = 0; i < bytes.length; i++) out += String.fromCharCode(bytes[i]); return out; }\n"];
     [html appendString:@"function bytesToBase64(bytes){ let binary = ''; const step = 0x8000; for (let i = 0; i < bytes.length; i += step) { const slice = bytes.subarray(i, i + step); binary += String.fromCharCode.apply(null, slice); } return btoa(binary); }\n"];

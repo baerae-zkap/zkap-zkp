@@ -4,3 +4,9 @@ node_modules/
 dist/
 pkg/
 .gstack/
+
+# React Native UniFFI bindings — generated at prepack from crates/uniffi-bindings.
+# Not committed (avoids stale bindings drifting from the native interface);
+# regenerated into the package before every publish. See scripts/generate-rn-bindings.mjs.
+packages/sdk-react-native/src/generated/
+packages/sdk-react-native/cpp/generated/
