@@ -12,11 +12,11 @@ crate-type = ["cdylib"]
 # façade entry points (and the re-exported `Proof` / `F` / `BN254`). It
 # pulls in artifact-loader + native-witness, so the separate
 # `host-primitives` / `manifest` / `artifact-loader` flags are subsumed.
-# `setup` is also enabled: with `default-features = false`, `native-prove`
-# alone leaves the always-compiled `groth16::setup` module without its
-# `setup`-gated deps (`rand_chacha`, the `crs` module), so the build only
-# resolves with `setup` on — it matches zkap-service's own `default` set.
-zkap-service = { workspace = true, features = ["native-prove", "setup"] }
+# `setup` (trusted-setup / key generation) is intentionally NOT enabled:
+# the SDK loads pre-generated release bundles and never runs setup, and
+# zkap-service now gates `groth16::setup` behind the `setup` feature so
+# `native-prove` alone compiles.
+zkap-service = { workspace = true, features = ["native-prove"] }
 napi = { workspace = true }
 napi-derive = { workspace = true }
 serde_json = "1"
