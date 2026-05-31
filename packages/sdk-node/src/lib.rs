@@ -29,8 +29,6 @@ use zkap_service::{
     ProveRequest, ProveResponse, WitnessBundle,
 };
 
-const ZKAP_CIRCUIT_COMMIT: &str = "d600a8782f2ae5be89755b3de4dde80473741356";
-
 struct CachedWitnessModule {
     engine: wasmtime::Engine,
     module: wasmtime::Module,
@@ -852,15 +850,6 @@ pub struct JsLoadReleaseOpts {
     pub release_dir: String,
     /// Shape of the release to stage. Must be `"1-of-1"` or `"3-of-3"`.
     pub shape: String,
-    /// Optional expected `manifest.build.circuit_commit`.
-    ///
-    /// Defaults to the zkap-circuit revision this SDK was built against. Full
-    /// 40-character commits and unambiguous prefixes of at least 7 characters
-    /// are accepted.
-    pub expected_circuit_commit: Option<String>,
-    /// Skip `manifest.build.circuit_commit` validation. Intended only for
-    /// local development bundles that are known to be compatible.
-    pub allow_circuit_commit_mismatch: Option<bool>,
 }
 
 /// Result of `loadRelease`.
@@ -897,62 +886,12 @@ pub struct JsLoadReleaseResult {
 pub fn load_release(opts: JsLoadReleaseOpts) -> napi::Result<JsLoadReleaseResult> {
     let loaded = zkap_zkp_prover::load_release(Path::new(&opts.release_dir), &opts.shape)
         .map_err(|e| napi::Error::from_reason(format!("loadRelease: {e}")))?;
-    validate_manifest_circuit_commit(
-        &loaded.manifest_json,
-        opts.expected_circuit_commit.as_deref(),
-        opts.allow_circuit_commit_mismatch.unwrap_or(false),
-    )?;
     Ok(JsLoadReleaseResult {
         staged_dir: loaded.staged_dir.to_string_lossy().into_owned(),
         manifest_json: loaded.manifest_json,
         shape: loaded.shape,
         release_sha: loaded.release_sha,
     })
-}
-
-fn normalize_git_commit_prefix(value: &str, field: &str) -> napi::Result<String> {
-    let normalized = value.trim().to_ascii_lowercase();
-    let valid_len = (7..=40).contains(&normalized.len());
-    let valid_hex = normalized.chars().all(|c| c.is_ascii_hexdigit());
-    if !valid_len || !valid_hex {
-        return Err(napi::Error::from_reason(format!(
-            "loadRelease: invalid {field}: expected a 7-40 character git commit hex prefix"
-        )));
-    }
-    Ok(normalized)
-}
-
-fn validate_manifest_circuit_commit(
-    manifest_json: &str,
-    expected_override: Option<&str>,
-    allow_mismatch: bool,
-) -> napi::Result<()> {
-    if allow_mismatch {
-        return Ok(());
-    }
-
-    let expected = normalize_git_commit_prefix(
-        expected_override.unwrap_or(ZKAP_CIRCUIT_COMMIT),
-        "expectedCircuitCommit",
-    )?;
-    let manifest: serde_json::Value = serde_json::from_str(manifest_json)
-        .map_err(|e| napi::Error::from_reason(format!("loadRelease: parse manifest.json: {e}")))?;
-    let actual_raw = manifest
-        .get("build")
-        .and_then(|build| build.get("circuit_commit"))
-        .and_then(|commit| commit.as_str())
-        .ok_or_else(|| {
-            napi::Error::from_reason(format!(
-                "loadRelease: incompatible zkap-circuit release: release manifest missing build.circuit_commit. Use a release built from zkap-circuit {expected}."
-            ))
-        })?;
-    let actual = normalize_git_commit_prefix(actual_raw, "release manifest build.circuit_commit")?;
-    if !actual.starts_with(&expected) {
-        return Err(napi::Error::from_reason(format!(
-            "loadRelease: zkap-circuit release commit mismatch: expected {expected}, got {actual}. Use a release built from the zkap-circuit revision compatible with this SDK."
-        )));
-    }
-    Ok(())
 }
 
 /// Per-proof verification verdict returned by `verify`.

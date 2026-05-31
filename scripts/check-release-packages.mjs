@@ -124,30 +124,6 @@ function checkLocalCargoPatches() {
 
 checkLocalCargoPatches()
 
-const cargoZkapCircuitRev = extractRequired(
-  /zkap-service\s*=\s*\{[^}]*\brev\s*=\s*"([0-9a-f]{40})"/,
-  'Cargo.toml',
-  'zkap-service git rev',
-)
-const sdkZkapCircuitRev = extractRequired(
-  /ZKAP_CIRCUIT_COMMIT\s*=\s*['"]([0-9a-f]{40})['"]/,
-  'packages/sdk/src/release-shared.ts',
-  'ZKAP_CIRCUIT_COMMIT',
-)
-const nodeZkapCircuitRev = extractRequired(
-  /const ZKAP_CIRCUIT_COMMIT:\s*&str\s*=\s*"([0-9a-f]{40})";/,
-  'packages/sdk-node/src/lib.rs',
-  'ZKAP_CIRCUIT_COMMIT',
-)
-
-if (sdkZkapCircuitRev !== cargoZkapCircuitRev || nodeZkapCircuitRev !== cargoZkapCircuitRev) {
-  console.error('zkap-circuit compatibility pins are not synchronized:')
-  console.error(`  Cargo.toml zkap-service rev: ${cargoZkapCircuitRev}`)
-  console.error(`  packages/sdk/src/release-shared.ts: ${sdkZkapCircuitRev}`)
-  console.error(`  packages/sdk-node/src/lib.rs: ${nodeZkapCircuitRev}`)
-  process.exit(1)
-}
-
 const versions = new Set(packages.map(({ json }) => json.version))
 if (versions.size !== 1) {
   console.error('Release package versions are not synchronized:')

@@ -181,35 +181,6 @@ function rewriteSumsEntry(
   writeFileSync(sumsPath, rewritten.join('\n'))
 }
 
-function readManifestCircuitCommit(releaseDir: string, shape: string): string {
-  const manifest = JSON.parse(
-    readFileSync(join(releaseDir, `${shape}-manifest.json`), 'utf8'),
-  ) as { build?: { circuit_commit?: unknown } }
-  const commit = manifest.build?.circuit_commit
-  if (typeof commit !== 'string') {
-    throw new Error(`${shape}-manifest.json missing build.circuit_commit`)
-  }
-  return commit
-}
-
-function rewriteManifest(
-  releaseDir: string,
-  shape: string,
-  update: (manifest: Record<string, unknown>) => void,
-): void {
-  const manifestPath = join(releaseDir, `${shape}-manifest.json`)
-  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as Record<string, unknown>
-  update(manifest)
-  const manifestText = `${JSON.stringify(manifest, null, 2)}\n`
-  writeFileSync(manifestPath, manifestText)
-  rewriteSumsEntry(
-    releaseDir,
-    shape,
-    'manifest.json',
-    createHash('sha256').update(manifestText).digest('hex'),
-  )
-}
-
 function loadFixtureRelease(opts: {
   releaseDir?: string
   shape: string
@@ -217,7 +188,6 @@ function loadFixtureRelease(opts: {
   return loadRelease({
     releaseDir: opts.releaseDir ?? RELEASE_DIR,
     shape: opts.shape,
-    allowCircuitCommitMismatch: true,
   })
 }
 
@@ -240,38 +210,6 @@ itLR('(a) loadRelease({shape: "1-of-1"}) returns staged 8-file bundle', (t) => {
   const manifest = JSON.parse(result.manifestJson) as Record<string, unknown>
   t.is(manifest['manifest_version'], '1')
   t.is(manifest['curve'], 'bn254')
-})
-
-itLR('(a2) loadRelease accepts an explicit zkap-circuit commit pin', (t) => {
-  const circuitCommit = readManifestCircuitCommit(RELEASE_DIR, '1-of-1')
-  const result = loadRelease({
-    releaseDir: RELEASE_DIR,
-    shape: '1-of-1',
-    expectedCircuitCommit: circuitCommit.slice(0, 12),
-  })
-
-  const manifest = JSON.parse(result.manifestJson) as {
-    build: { circuit_commit: string }
-  }
-  t.is(manifest.build.circuit_commit, circuitCommit)
-})
-
-itLR('(a3) loadRelease rejects a zkap-circuit commit mismatch', (t) => {
-  purgeWarmCacheForShape('1-of-1')
-  const copied = copyReleaseDir()
-  stagedTmpdirsToCleanup.push(copied)
-  rewriteManifest(copied, '1-of-1', (manifest) => {
-    const build = (manifest['build'] ?? {}) as Record<string, unknown>
-    build['circuit_commit'] = '0000000000000000000000000000000000000000'
-    manifest['build'] = build
-  })
-
-  const err = t.throws(
-    () => loadRelease({ releaseDir: copied, shape: '1-of-1' }),
-    { instanceOf: Error },
-  )
-  t.regex(err!.message, /loadRelease:/)
-  t.regex(err!.message, /release commit mismatch|build\.circuit_commit/i)
 })
 
 // ---------------------------------------------------------------------------

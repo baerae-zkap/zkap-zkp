@@ -1,6 +1,6 @@
 {
   "name": "@baerae/zkap-zkp-react-native",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "React Native SDK for zkap-zkp — on-device ZK proving with Groth16 (BN254) and Poseidon hash.",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
@@ -63,7 +63,7 @@
     }
   },
   "dependencies": {
-    "uniffi-bindgen-react-native": "^0.31.0-2"
+    "uniffi-bindgen-react-native": "0.31.0-2"
   },
   "codegenConfig": {
     "name": "ZkapReactNativeSpec",

@@ -24,7 +24,7 @@ import type {
 
 export * from './errors';
 export * from './types';
-export { ZKAP_CIRCUIT_COMMIT, normalizeCircuitConfig } from './release-shared';
+export { normalizeCircuitConfig } from './release-shared';
 
 let wasmReady: Promise<InitOutput> | undefined;
 

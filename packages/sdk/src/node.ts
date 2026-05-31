@@ -19,7 +19,6 @@ import { pipeline } from 'node:stream/promises';
 import {
   RELEASE_ARTIFACT_NAMES,
   WITNESS_GEN_NAME,
-  assertManifestCircuitCommit,
   computeReleaseSha,
   findManifestArtifact,
   listManifestArtifacts,
@@ -48,7 +47,7 @@ import type {
 
 export * from './errors';
 export * from './types';
-export { ZKAP_CIRCUIT_COMMIT, normalizeCircuitConfig } from './release-shared';
+export { normalizeCircuitConfig } from './release-shared';
 
 export async function initZkap(): Promise<void> {
   return undefined;
@@ -248,7 +247,6 @@ export async function downloadRelease(
 
   if (!opts.force && (await isCachedReleaseValid(stagedDir, sha256Sums))) {
     const manifestJson = await readFile(join(stagedDir, 'manifest.json'), 'utf8');
-    assertManifestCircuitCommit(manifestJson, opts);
     return {
       stagedDir,
       manifestJson,
@@ -279,7 +277,6 @@ export async function downloadRelease(
     fetchImpl,
   );
   const manifestJson = await readFile(join(tmpStagedDir, 'manifest.json'), 'utf8');
-  assertManifestCircuitCommit(manifestJson, opts);
 
   let completedArtifacts = 1;
 

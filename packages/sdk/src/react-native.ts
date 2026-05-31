@@ -9,7 +9,6 @@ import { UnsupportedPlatformError } from './errors';
 import {
   RELEASE_ARTIFACT_NAMES,
   WITNESS_GEN_NAME,
-  assertManifestCircuitCommit,
   computeReleaseSha,
   findManifestArtifact,
   listManifestArtifacts,
@@ -38,7 +37,7 @@ import type {
 
 export * from './errors';
 export * from './types';
-export { ZKAP_CIRCUIT_COMMIT, normalizeCircuitConfig } from './release-shared';
+export { normalizeCircuitConfig } from './release-shared';
 
 type ReactNativeCircuitConfig = Parameters<typeof rnGenerateAnchor>[0];
 type ReactNativeProofRequest = Parameters<typeof rnProve>[1];
@@ -296,7 +295,6 @@ export async function downloadRelease(
 
   if (!opts.force && (await isCachedReleaseValid(fs, stagedDirUri, sha256Sums))) {
     const manifestJson = await fs.readAsStringAsync(`${stagedDirUri}manifest.json`);
-    assertManifestCircuitCommit(manifestJson, opts);
     return {
       stagedDir: uriToPath(stagedDirUri),
       manifestJson,
@@ -322,7 +320,6 @@ export async function downloadRelease(
       `[zkap-zkp] manifest.json SHA256 mismatch: expected ${expectedManifestSha}, got ${manifestSha}`,
     );
   }
-  assertManifestCircuitCommit(manifestJson, opts);
   await fs.writeAsStringAsync(`${tmpStagedDirUri}manifest.json`, manifestJson);
 
   const totalArtifacts = RELEASE_ARTIFACT_NAMES.length + 1;

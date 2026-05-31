@@ -11,8 +11,6 @@ export const RELEASE_ARTIFACT_NAMES = [
 ] as const;
 
 export const WITNESS_GEN_NAME = 'witness_gen.wasm';
-export const ZKAP_CIRCUIT_COMMIT =
-  'd600a8782f2ae5be89755b3de4dde80473741356';
 
 export type ReleaseArtifactName =
   | (typeof RELEASE_ARTIFACT_NAMES)[number]
@@ -26,14 +24,6 @@ export interface ManifestArtifact {
 
 export interface ReleaseManifest {
   artifacts: Record<string, ManifestArtifact | undefined>;
-  build?: {
-    circuit_commit?: string;
-  };
-}
-
-export interface ReleaseCircuitCommitCheckOpts {
-  expectedCircuitCommit?: string;
-  allowCircuitCommitMismatch?: boolean;
 }
 
 const HEX = '0123456789abcdef';
@@ -277,45 +267,6 @@ export function parseReleaseManifest(manifestJson: string): ReleaseManifest {
     throw new Error('[zkap-zkp] malformed release manifest: artifacts missing');
   }
   return parsed as unknown as ReleaseManifest;
-}
-
-function normalizeGitCommitPrefix(value: string, field: string): string {
-  const normalized = value.trim().toLowerCase();
-  if (!/^[0-9a-f]{7,40}$/.test(normalized)) {
-    throw new Error(
-      `[zkap-zkp] invalid ${field}: expected a 7-40 character git commit hex prefix`,
-    );
-  }
-  return normalized;
-}
-
-export function assertManifestCircuitCommit(
-  manifestJson: string,
-  opts: ReleaseCircuitCommitCheckOpts = {},
-): void {
-  if (opts.allowCircuitCommitMismatch) return;
-
-  const expected = normalizeGitCommitPrefix(
-    opts.expectedCircuitCommit ?? ZKAP_CIRCUIT_COMMIT,
-    'expectedCircuitCommit',
-  );
-  const manifest = parseReleaseManifest(manifestJson);
-  const actualRaw = manifest.build?.circuit_commit;
-  if (typeof actualRaw !== 'string') {
-    throw new Error(
-      `[zkap-zkp] incompatible zkap-circuit release: release manifest missing build.circuit_commit. Use a release built from zkap-circuit ${expected}.`,
-    );
-  }
-
-  const actual = normalizeGitCommitPrefix(
-    actualRaw,
-    'release manifest build.circuit_commit',
-  );
-  if (!actual.startsWith(expected)) {
-    throw new Error(
-      `[zkap-zkp] zkap-circuit release commit mismatch: expected ${expected}, got ${actual}. Use a release built from the zkap-circuit revision compatible with this SDK.`,
-    );
-  }
 }
 
 export function listManifestArtifacts(manifestJson: string): ManifestArtifact[] {

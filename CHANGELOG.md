@@ -6,30 +6,87 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-05-29
+
+### Removed (BREAKING)
+
+- **Dropped the SDK-enforced zkap-circuit commit pin.** Removed the `ZKAP_CIRCUIT_COMMIT` constant (TS + Rust), the `assertManifestCircuitCommit` / `validate_manifest_circuit_commit` checks, and the `expectedCircuitCommit` / `allowCircuitCommitMismatch` options on `downloadRelease` / `loadRelease`. The SDK no longer compares a release's `manifest.build.circuit_commit` against a hardcoded revision. Release artifacts are still integrity-checked against `<shape>-SHA256SUMS` (and the optional `expectedReleaseSha` pin); ensuring the served circuit release is compatible with the SDK is now the caller's responsibility.
+
+### Fixed
+
+- **`@baerae/zkap-zkp-react-native` now pins `uniffi-bindgen-react-native` to exactly `0.31.0-2`** (was `^0.31.0-2`). The shipped C++ bindings (`cpp/generated/zkap_uniffi_bindings.cpp`) call the `string_to_arraybuffer` / `arraybuffer_to_string` ubrn runtime symbols, which were renamed to `string_to_buffer` / `string_from_buffer` in `0.31.0-3`. The caret range allowed consumer fresh-installs to resolve `0.31.0-3`, breaking the Android/iOS native compile (and `android/CMakeLists.txt`'s `require.resolve('uniffi-bindgen-react-native/package.json')`, since `0.31.0-3` no longer exports `./package.json`). The monorepo lockfile already pinned `0.31.0-2`, so the break only surfaced for downstream consumers.
+
+## [0.1.5] - 2026-05-29
+
+The largest release since `0.1.0`: a unified multi-runtime facade, a native UniFFI/JSI React Native package, a prepared/native proving core, and release-bundle download & staging helpers.
+
 ### Added
 
-- **SDK-prefixed runtime package names**: the existing Node, WASM, and React Native package directories now publish as `@baerae/zkap-zkp-node`, `@baerae/zkap-zkp-wasm`, and `@baerae/zkap-zkp-react-native`, so applications can install only the SDK package for their runtime.
-- **`downloadRelease({ baseUrl, shape, ... })`** (`@baerae/zkap-zkp`): downloads a zkap-circuit flat release bundle from static hosting and stages it as a local `manifestDir` for Node.js and React Native. Supports `expectedReleaseSha` pinning, cache reuse, progress callbacks, and test/custom networking through `fetch`.
-- **`loadCircuitConfig(manifestDir)` / `normalizeCircuitConfig(input)`**: reads release `config.json`, verifies it against `manifest.json`, and returns the public facade camelCase `CircuitConfig`; `normalizeCircuitConfig` is available in Node.js, React Native, and WASM.
+- **Multi-runtime facade `@baerae/zkap-zkp`.** Public facade with `node`, `node-sync`, browser `wasm`, and `react-native` export conditions and a uniform Promise-based API. Re-exports `generateHash`, `generateLeafHash`, `generateAudHash`, `generateAnchor`, `prepareProver`, `prove`, `verify`, `downloadRelease`, `loadRelease`, `loadCircuitConfig`, `normalizeCircuitConfig`, `initZkap`, and `ZKAP_CIRCUIT_COMMIT`. Adds shared release-manifest validation, normalized camelCase `CircuitConfig` types, and typed error classes.
+- **Native React Native package (`@baerae/zkap-zkp-react-native`).** Replaces the Expo module wrapper with a UniFFI/JSI binding: Android (Kotlin module/package, CMake, generated UniFFI C++/TS bindings) and iOS (podspec, Objective-C++ bridge, WKWebView witness-bridge, XCFramework build script) packaging, plus native artifact validation/rebuild scripts.
+- **Prepared / native proving core.** New `crates/prover` crate stages flat zkap-circuit release bundles into manifest-compatible directories (`load_release` / `LoadedRelease`, `ReleaseError`). `prepareProver(manifestDir)` (`sdk-node`) pre-loads the artifact set so later `prove()` calls skip cold setup; `prove()` / `verify()` run through the `ark-ar1cs` / `zkap-service` `ArtifactSet`.
+- **`downloadRelease({ baseUrl, shape, ... })`** (`sdk-node`, `sdk-react-native`): downloads a zkap-circuit flat release bundle from static hosting and stages it as a local `manifestDir`. Supports `expectedReleaseSha` pinning, cache reuse, progress callbacks, and custom networking through `fetch`.
+- **`loadRelease({ releaseDir, shape })`** (`sdk-node`, re-exported from `@baerae/zkap-zkp`): ingests zkap-circuit's flat prefixed release bundle (e.g. `1-of-1-pk.bin`, `1-of-1-manifest.json`, `1-of-1-SHA256SUMS`) and produces a SHA-verified unprefixed staged directory under `os.tmpdir()/zkap-release-<sha>-<shape>/`. Output: `{ stagedDir, manifestJson, shape, releaseSha }`. Idempotent (warm-cache re-call < 2s), concurrent-safe (`fs2` exclusive lock + atomic rename). Pass `stagedDir` as `request.manifestDir` to `prove()` / `verify()`. Non-breaking — existing `manifestDir` API unchanged.
+- **`loadCircuitConfig(manifestDir)` / `normalizeCircuitConfig(input)`**: read release `config.json`, verify it against `manifest.json`, and return the public facade camelCase `CircuitConfig`.
 
 ### Changed
 
 - **`@baerae/zkap-zkp` no longer hard-depends on every runtime binding.** The compatibility facade now declares the runtime packages as optional peers, so installing the facade does not force Node, WebAssembly, and React Native bindings into every application. Consumers that use the facade must install `@baerae/zkap-zkp` plus exactly one matching runtime package.
-
-## [0.1.5] - 2026-05-20
-
-### Added
-
-- **`loadRelease({ releaseDir, shape })`** (`sdk-node`, re-exported from `@baerae/zkap-zkp`): ingests zkap-circuit's flat prefixed release bundle (e.g. `1-of-1-pk.bin`, `1-of-1-manifest.json`, `1-of-1-SHA256SUMS`) and produces a SHA-verified unprefixed staged directory under `os.tmpdir()/zkap-release-<sha>-<shape>/`. Output: `{ stagedDir, manifestJson, shape, releaseSha }`. Idempotent (warm-cache re-call < 2s), concurrent-safe (`fs2` exclusive lock + atomic rename). Pass `stagedDir` as `request.manifestDir` to `prove()` / `verify()`. Non-breaking — existing `manifestDir` API unchanged.
+- Repository URLs updated after the GitHub rename to `zkap-zkp-sdk`. README and `docs/` rewritten to document the facade model and release-backed SDK usage.
 
 ### Fixed
 
 - **`verify` is now re-exported through `@baerae/zkap-zkp` facade.** Previously defined in `@baerae/zkap-zkp-node`'s `index.d.ts` but never re-exported through the public facade; this blocked consumers of the ADR-003 facade-only convention (e.g. `zkap-zkp-testbed/node-harness/`) from calling `verify()` without violating the lint rule.
+- Release/publish ordering: the npm upgrade step is delayed until the release publish stage to avoid bootstrapping against not-yet-published versions.
+
+### Removed
+
+- `examples/browser` and `examples/node` directories removed from the repository.
+- Expo module wiring (`expo-module.config.json`) removed from the React Native package as part of the native rewrite.
+
+### CI / Tooling
+
+- Packed consumer smoke tests (`scripts/smoke-packed-consumers.mjs`) and hardened release bootstrap validation. New verification scripts: `verify-node-platform-packages.mjs`, `check-rn-native-artifacts.mjs`, `check-rn-ios-runtime.mjs`.
 
 ### Notes
 
-- **`sdk-wasm` + `sdk-react-native` version-only bump.** No source or native artifact changes in these packages. Version moved from `0.1.4` to `0.1.5` to preserve the synchronized-version invariant enforced by `scripts/check-release-packages.mjs`.
+- **npm package names are unchanged from `0.1.4`.** A `-sdk-` infix rename was introduced mid-cycle and then reverted: the GitHub repository is `zkap-zkp-sdk`, but the published npm packages keep their original names (`@baerae/zkap-zkp-node`, `-wasm`, `-react-native`, and the `node-*` platform packages) so existing installs resolve correctly.
+- **React Native is now a native module.** The UniFFI/JSI package requires a native rebuild (autolinking + pod install / Gradle); it is no longer a pure Expo JS module. Device builds and real-CRS proving were not exercised in CI.
 - **Host limitation: `node-harness` `file:` install supports darwin-arm64 only in this iteration.** The `overrides` block in `zkap-zkp-testbed/node-harness/package.json` pins the napi platform package for darwin-arm64; other host arches (darwin-x64, linux-x64-gnu, linux-x64-musl) require additional overrides — tracked as a follow-up.
+
+## [0.1.4] - 2026-04-15
+
+A maintenance and documentation release: trimmed the dependency surface and shipped the first public, package-user-facing docs. No hashing/proving API changes.
+
+### Added
+
+- **`docs/API_REFERENCE.md`** — full type signatures, a platform support matrix, and code examples for all three packages.
+- **`docs/REACT_NATIVE_GUIDE.md`** — installation, setup, and usage instructions for the React Native package.
+
+### Changed
+
+- README capability matrix: added the Core API / Utility API distinction, a React Native column, a naming-convention table, and a proving-key section. `CONTRIBUTING.md` no longer references the internal release-runbook path.
+
+### Removed
+
+- **`artifact-manager`** removed from `@baerae/zkap-zkp` (`sdk`) and `@baerae/zkap-zkp-react-native` (`sdk-react-native`).
+- **`expo-crypto` and `expo-file-system`** removed from the React Native package's `peerDependencies`.
+- Internal `docs/release-runbook.md` removed from the public `docs/` directory.
+
+### Fixed
+
+- **`@baerae/zkap-zkp` (`sdk`) test command.** `artifact-manager.spec.ts` was the only test in the facade package; after its removal `ava` failed with "Couldn't find any files to test". The test script is now a no-op (`sdk` is a pure re-export package). Unused `ava` and `swc` devDependencies were dropped.
+
+## [0.1.3] - 2026-04-14
+
+React Native UniFFI build and CI fixes following the `0.1.2` UniFFI rewrite.
+
+### Fixed
+
+- **(uniffi)** add mimalloc global allocator and fix iOS podspec paths.
+- **(ios)** use a consistent binary name for the XCFramework simulator slice; iOS build script now uses the `zkap-uniffi-bindings` crate.
+- **(ci)** add `CC` / `AR` env vars for Android NDK cross-compilation.
+- **(sdk-react-native)** fix the Kotlin `message` property conflict in `ZkapException`.
 
 ## [0.1.2] - 2026-04-10
 

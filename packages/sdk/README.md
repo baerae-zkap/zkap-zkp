@@ -62,7 +62,6 @@ the local `manifestDir`:
 
 ```ts
 import {
-  ZKAP_CIRCUIT_COMMIT,
   downloadRelease,
   loadCircuitConfig,
   prove,
@@ -72,7 +71,6 @@ const release = await downloadRelease({
   baseUrl: 'https://static.example.com/zkap/releases/v0.1.5',
   shape: '3-of-3',
   expectedReleaseSha: '50aaaa8fe35fc261',
-  expectedCircuitCommit: ZKAP_CIRCUIT_COMMIT,
 })
 const config = await loadCircuitConfig(release.stagedDir)
 const proof = await prove(config, {
@@ -84,10 +82,10 @@ const proof = await prove(config, {
 React Native uses `expo-file-system` for this helper. Install it with
 `npx expo install expo-file-system` if your app does not already include it.
 
-`downloadRelease` and Node's `loadRelease` reject release manifests whose
-`build.circuit_commit` does not match `ZKAP_CIRCUIT_COMMIT` by default. Pass
-`expectedCircuitCommit` to pin a specific compatible release, and reserve
-`allowCircuitCommitMismatch` for local development bundles only.
+`downloadRelease` and Node's `loadRelease` verify each artifact against the
+release's `<shape>-SHA256SUMS` (and the optional `expectedReleaseSha` pin), but
+they do not enforce any specific zkap-circuit revision. Ensure the release
+bundle you serve was built from a circuit revision compatible with this SDK.
 
 ## Platform notes
 

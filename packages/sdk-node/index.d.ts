@@ -236,19 +236,6 @@ export interface JsLoadReleaseOpts {
   releaseDir: string
   /** Shape of the release to stage. Must be `"1-of-1"` or `"3-of-3"`. */
   shape: string
-  /**
-   * Optional expected `manifest.build.circuit_commit`.
-   *
-   * Defaults to the zkap-circuit revision this SDK was built against. Full
-   * 40-character commits and unambiguous prefixes of at least 7 characters
-   * are accepted.
-   */
-  expectedCircuitCommit?: string
-  /**
-   * Skip `manifest.build.circuit_commit` validation. Intended only for
-   * local development bundles that are known to be compatible.
-   */
-  allowCircuitCommitMismatch?: boolean
 }
 /**
  * Result of `loadRelease`.

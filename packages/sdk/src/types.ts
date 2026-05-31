@@ -103,8 +103,6 @@ export interface JsPrepareProverResult {
 export interface JsLoadReleaseOpts {
   releaseDir: string;
   shape: string;
-  expectedCircuitCommit?: string;
-  allowCircuitCommitMismatch?: boolean;
 }
 
 export interface JsLoadReleaseResult {
@@ -180,20 +178,6 @@ export interface DownloadReleaseOpts {
   cacheDir?: string;
   /** Optional pinned first-16 SHA256 of `<shape>-SHA256SUMS`. */
   expectedReleaseSha?: string;
-  /**
-   * Optional expected `manifest.build.circuit_commit`.
-   *
-   * Defaults to the zkap-circuit revision this SDK was built against. Full
-   * 40-character commits and unambiguous prefixes of at least 7 characters are
-   * accepted.
-   */
-  expectedCircuitCommit?: string;
-  /**
-   * Skip `manifest.build.circuit_commit` validation.
-   *
-   * Intended only for local development bundles that are known to be compatible.
-   */
-  allowCircuitCommitMismatch?: boolean;
   /** Re-download even when a cached manifest directory appears usable. */
   force?: boolean;
   /** Fetch implementation override for tests or custom networking. */

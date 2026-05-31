@@ -9,7 +9,6 @@ export {
   generateAudHash,
   generateHash,
   generateLeafHash,
-  ZKAP_CIRCUIT_COMMIT,
   downloadRelease,
   loadCircuitConfig,
   loadRelease,
