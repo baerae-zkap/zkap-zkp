@@ -8,9 +8,11 @@ import { UnsupportedPlatformError } from './errors';
 import type {
   AnchorResult,
   AudHashResult,
+  CachedReleaseInfo,
   CircuitConfig,
   DownloadReleaseOpts,
   DownloadReleaseResult,
+  GetCachedReleaseInfoOpts,
   InitInput,
   InitOutput,
   LoadReleaseOpts,
@@ -110,6 +112,16 @@ export async function downloadRelease(
     'downloadRelease',
     'wasm',
     '[zkap-zkp] downloadRelease is not available in WebAssembly because browsers cannot provide a local manifestDir for prove(). Use Node.js or React Native.',
+  );
+}
+
+export async function getCachedReleaseInfo(
+  _opts: GetCachedReleaseInfoOpts,
+): Promise<CachedReleaseInfo> {
+  throw new UnsupportedPlatformError(
+    'getCachedReleaseInfo',
+    'wasm',
+    '[zkap-zkp] getCachedReleaseInfo requires filesystem access and is only available in Node.js and React Native.',
   );
 }
 

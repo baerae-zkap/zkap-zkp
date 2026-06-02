@@ -179,6 +179,72 @@ const result = await prove(config, {
 Pin `expectedReleaseSha` in production using a trusted release channel. The
 value is the first 16 hex chars of SHA256 of `<shape>-SHA256SUMS`.
 
+### Large download UX
+
+A proving bundle is large (the `pk.bin` alone is several hundred MB). Treat the
+download as a first-class, interruptible flow rather than a silent `await`:
+
+1. **Check the cache first.** Skip the consent/download screen entirely when the
+   bundle is already staged.
+
+   ```typescript
+   import { getCachedReleaseInfo } from '@baerae/zkap-zkp/react-native';
+
+   const cached = await getCachedReleaseInfo({
+     shape: '3-of-3',
+     expectedReleaseSha: '50aaaa8fe35fc261',
+   });
+   if (cached.valid) {
+     // Go straight to prove() with cached.stagedDir.
+   }
+   ```
+
+2. **Ask for consent and prefer Wi-Fi.** Show the expected size before starting.
+   `releaseTotalBytes` from the first progress event (or `cached.totalBytes`) gives
+   you the real number to display.
+
+3. **Show whole-release progress.** Use `percent` (or
+   `releaseLoadedBytes / releaseTotalBytes`) for a single bar. Do **not** use the
+   deprecated `loadedBytes`/`totalBytes` — those are per-artifact and will make the
+   bar jump back to 0 for every file.
+
+4. **Support cancel and retry.** Pass an `AbortSignal`; on cancel the promise
+   rejects with an `AbortError` and partial files are cleaned up. Retrying reuses
+   any already-validated cached release.
+
+```typescript
+const controller = new AbortController();
+
+try {
+  const release = await downloadRelease({
+    baseUrl,
+    shape: '3-of-3',
+    expectedReleaseSha: '50aaaa8fe35fc261',
+    signal: controller.signal,
+    onProgress: (p) => {
+      if (p.phase === 'artifact' && typeof p.percent === 'number') {
+        setProgress(p.percent); // 0..1, whole-release
+      }
+    },
+  });
+  // release.stagedDir is ready for prove()
+} catch (err) {
+  if ((err as Error).name === 'AbortError') {
+    // user cancelled — safe to retry later
+  } else {
+    throw err;
+  }
+}
+
+// e.g. from a Cancel button:
+// controller.abort();
+```
+
+> React Native verifies each artifact's **size** during download (not its content
+> SHA256). The native `prove()` path re-applies the manifest SHA256 gate, so a
+> corrupted large artifact fails at `prove()` rather than at download time. See
+> the [API Reference](API_REFERENCE.md#integrity).
+
 For local device smoke tests without hosted release artifacts, copy a complete
 flat zkap-circuit release directory into app-accessible storage and pass that
 directory as `manifest_dir`. The staged directory must contain
@@ -216,7 +282,8 @@ console.log(result.jwt_exp_list);      // Per-JWT expiration
 | `groth16Setup()` | Removed in v0.1.2. Trusted setup is a protocol management operation. |
 | `prepareProver()` | Node.js only; mobile proving loads artifacts inside `prove()`. |
 | `loadRelease()` | Node.js only. |
-| `downloadRelease()` | Available through the `@baerae/zkap-zkp` compatibility facade. |
+| `downloadRelease()` | Available through the `@baerae/zkap-zkp` compatibility facade (progress + `AbortSignal`). |
+| `getCachedReleaseInfo()` | Available through the `@baerae/zkap-zkp` compatibility facade. |
 | `loadCircuitConfig()` | Available through the `@baerae/zkap-zkp` compatibility facade. |
 | `verify()` | Node.js only in the facade; React Native throws `UnsupportedPlatformError`. |
 
