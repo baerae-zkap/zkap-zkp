@@ -82,10 +82,19 @@ const proof = await prove(config, {
 React Native uses `expo-file-system` for this helper. Install it with
 `npx expo install expo-file-system` if your app does not already include it.
 
-`downloadRelease` and Node's `loadRelease` verify each artifact against the
-release's `<shape>-SHA256SUMS` (and the optional `expectedReleaseSha` pin), but
-they do not enforce any specific zkap-circuit revision. Ensure the release
-bundle you serve was built from a circuit revision compatible with this SDK.
+Integrity differs by runtime. On Node.js, `downloadRelease` and `loadRelease`
+stream every artifact through SHA256 and verify it against the release's
+`<shape>-SHA256SUMS` (plus the optional `expectedReleaseSha` pin) before staging.
+On React Native, `downloadRelease` verifies the small `manifest.json`/`config.json`
+hashes and checks each large artifact's **size** during download; the native
+`prove()` path then re-applies the manifest SHA256 gate, so a corrupted artifact
+fails at `prove()` rather than at download time. Neither path enforces a specific
+zkap-circuit revision — ensure the bundle you serve was built from a circuit
+revision compatible with this SDK.
+
+For mobile, `downloadRelease` reports whole-release progress (`percent`) and
+accepts an `AbortSignal` for cancellation, and `getCachedReleaseInfo` checks for a
+staged bundle offline. See the [React Native guide](../../docs/REACT_NATIVE_GUIDE.md#large-download-ux).
 
 ## Platform notes
 

@@ -35,7 +35,8 @@ Functions actively used in production integrations.
 | `generateAudHash` | async | async | async | Audience hash |
 | `generateAnchor` | async | async | async | Threshold anchor |
 | `prove` | async | -- | async | Requires manifest-backed CRS/proving bundle |
-| `downloadRelease` | async | -- | async | Downloads/stages a flat release bundle |
+| `downloadRelease` | async | -- | async | Downloads/stages a flat release bundle; progress + `AbortSignal` |
+| `getCachedReleaseInfo` | async | -- | async | Read-only, offline check of a staged release |
 | `loadCircuitConfig` | async | -- | async | Reads release `config.json` as camelCase config |
 
 ### Utility API
@@ -346,6 +347,7 @@ interface DownloadReleaseOpts {
   force?: boolean;
   fetch?: typeof fetch;
   onProgress?: (progress: DownloadReleaseProgress) => void;
+  signal?: AbortSignal; // cancel an in-flight download; partial files are removed
 }
 ```
 
@@ -354,10 +356,61 @@ first 16 hex chars of SHA256 of `<shape>-SHA256SUMS`.
 Custom shape strings may contain only letters, numbers, dots, underscores, and
 hyphens.
 
-Node.js streams every downloaded artifact through SHA256 before staging. React
-Native verifies the small manifest/config hashes in JavaScript and checks
-artifact sizes during download; the native `prove()` path re-applies the
-manifest SHA gate before proving.
+Passing an `AbortSignal` lets you cancel a large download (for example when the
+user leaves the screen). On abort the promise rejects with an `AbortError`, the
+staging temp directory is removed, and any already-completed staged release is
+left intact.
+
+### Progress
+
+`onProgress` receives a `DownloadReleaseProgress` for each metadata, per-artifact,
+staging, and completion step.
+
+```typescript
+interface DownloadReleaseProgress {
+  phase: 'metadata' | 'artifact' | 'stage' | 'done';
+  artifact?: string;
+  // Per-artifact progress.
+  artifactLoadedBytes?: number;
+  artifactTotalBytes?: number;
+  // Whole-release progress (preferred for a single download bar).
+  releaseLoadedBytes?: number;
+  releaseTotalBytes?: number;
+  percent?: number; // [0, 1], present only when releaseTotalBytes is known
+  completedArtifacts?: number;
+  totalArtifacts?: number;
+  // Deprecated: artifact-scoped aliases of artifactLoadedBytes/artifactTotalBytes.
+  loadedBytes?: number;
+  totalBytes?: number;
+}
+```
+
+> **Do not show `loadedBytes`/`totalBytes` as overall download progress.** They
+> are per-artifact and reset on every file, so a UI built on them appears to
+> finish and restart for each artifact. For a single overall bar use
+> `percent`, or `releaseLoadedBytes / releaseTotalBytes`. The deprecated
+> `loadedBytes`/`totalBytes` remain only for backwards compatibility and mirror
+> `artifactLoadedBytes`/`artifactTotalBytes`.
+
+`releaseTotalBytes` is the sum of the manifest artifact sizes (excluding the tiny
+`manifest.json`), so it is known from the first artifact onward and is suitable
+for a "downloading ~N MB" prompt. React Native emits progress in real time as
+each artifact streams (via `expo-file-system`'s resumable downloader), not just
+once per file.
+
+### Integrity
+
+| Step | Node.js | React Native |
+|------|---------|--------------|
+| `<shape>-SHA256SUMS` pin | `expectedReleaseSha` (optional) | `expectedReleaseSha` (optional) |
+| `manifest.json` / `config.json` | SHA256 verified | SHA256 verified |
+| Large artifacts (`pk.bin`, `circuit.ar1cs`, ...) | content SHA256 streamed and verified before staging | size checked against the manifest during download |
+| Before `prove()` | n/a | native `ArtifactSet`/witness path re-applies the manifest SHA256 gate |
+
+React Native does not stream the multi-hundred-MB artifacts through a JavaScript
+SHA256 hash; doing so on-device is prohibitively slow and memory-heavy. Content
+integrity for those artifacts is enforced natively just before proving, so a
+corrupted `pk.bin` fails at `prove()` rather than at download time.
 
 ### Output
 
@@ -390,6 +443,59 @@ const result = await prove(config, {
 The facade's React Native export uses `expo-file-system` for filesystem access. Install it with
 `npx expo install expo-file-system` when using `downloadRelease()` or
 `loadCircuitConfig()` in a mobile app.
+
+---
+
+## getCachedReleaseInfo
+
+Read-only check of whether a release is already staged, without any network
+request. Use it to skip the consent/download screen when the proving bundle is
+already present. Available in Node.js and React Native.
+
+### Input
+
+```typescript
+interface GetCachedReleaseInfoOpts {
+  cacheDir?: string;          // defaults to os.tmpdir() (Node) / app cache (RN)
+  shape: '1-of-1' | '3-of-3' | string;
+  expectedReleaseSha: string; // pins which staged directory to inspect, offline
+}
+```
+
+### Output
+
+```typescript
+interface CachedReleaseInfo {
+  exists: boolean;     // a staged directory for this (releaseSha, shape) exists
+  valid: boolean;      // it passes integrity checks and is usable by prove()
+  stagedDir?: string;  // present when exists is true
+  releaseSha?: string;
+  totalBytes?: number; // sum of manifest artifact sizes, when known
+}
+```
+
+`expectedReleaseSha` is required because the staged directory name encodes the
+release SHA, so the lookup needs it to find the directory without downloading
+`<shape>-SHA256SUMS`. Validation is performed against the staged `manifest.json`:
+Node re-verifies each artifact's content SHA256; React Native verifies each
+artifact's size (matching `downloadRelease()`).
+
+### Example
+
+```typescript
+import { getCachedReleaseInfo, downloadRelease } from '@baerae/zkap-zkp/react-native';
+
+const cached = await getCachedReleaseInfo({
+  shape: '3-of-3',
+  expectedReleaseSha: '50aaaa8fe35fc261',
+});
+
+if (!cached.valid) {
+  // Show the "download ~{cached.totalBytes ?? estimate} MB over Wi-Fi" prompt,
+  // then download with progress + cancellation.
+  await downloadRelease({ baseUrl, shape: '3-of-3', expectedReleaseSha: '50aaaa8fe35fc261', onProgress });
+}
+```
 
 ---
 
@@ -497,3 +603,5 @@ All functions throw on invalid input. Common error cases:
 | `UnsupportedPlatformError` for `verify` | Calling `verify` outside Node.js |
 | `release SHA mismatch` | `expectedReleaseSha` does not match downloaded `<shape>-SHA256SUMS` |
 | `config.json SHA256 mismatch` | `config.json` no longer matches `manifest.json` |
+| `AbortError` from `downloadRelease` | The supplied `signal` was aborted; partial staging is cleaned up |
+| `SHA256 mismatch` / `invalid size` from `downloadRelease` | A downloaded artifact failed verification (Node: content SHA256; React Native: size) |

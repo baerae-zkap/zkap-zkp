@@ -19,23 +19,29 @@ import { pipeline } from 'node:stream/promises';
 import {
   RELEASE_ARTIFACT_NAMES,
   WITNESS_GEN_NAME,
+  buildArtifactProgress,
   computeReleaseSha,
   findManifestArtifact,
   listManifestArtifacts,
+  makeAbortError,
   normalizeCircuitConfig,
   parseSha256Sums,
   releaseFileName,
   releaseFileUrl,
   sha256HexUtf8,
+  sumManifestBytes,
+  throwIfAborted,
   validateReleaseShape,
 } from './release-shared';
 import type {
   AnchorResult,
   AudHashResult,
+  CachedReleaseInfo,
   CircuitConfig,
   DownloadReleaseOpts,
   DownloadReleaseProgress,
   DownloadReleaseResult,
+  GetCachedReleaseInfoOpts,
   LoadReleaseOpts,
   LoadReleaseResult,
   PrepareProverResult,
@@ -109,8 +115,9 @@ function getFetch(fetchImpl?: typeof fetch): typeof fetch {
 async function fetchText(
   url: string,
   fetchImpl: typeof fetch,
+  signal?: AbortSignal,
 ): Promise<string> {
-  const response = await fetchImpl(url);
+  const response = await fetchImpl(url, signal ? { signal } : undefined);
   if (!response.ok) {
     throw new Error(`[zkap-zkp] failed to fetch ${url}: HTTP ${response.status}`);
   }
@@ -133,19 +140,25 @@ async function sha256File(path: string): Promise<string> {
   return hash.digest('hex');
 }
 
-async function isCachedReleaseValid(
+async function readStagedManifest(
   stagedDir: string,
-  sha256Sums: Map<string, string>,
+): Promise<string | undefined> {
+  try {
+    return await readFile(join(stagedDir, 'manifest.json'), 'utf8');
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Validate a staged directory against its own manifest: every manifest artifact must
+ * exist with a matching size and content SHA256. Fully offline — no SHA256SUMS needed.
+ */
+async function isStagedManifestValid(
+  stagedDir: string,
+  manifestJson: string,
 ): Promise<boolean> {
   try {
-    const manifestJson = await readFile(join(stagedDir, 'manifest.json'), 'utf8');
-    const expectedManifestSha = sha256Sums.get('manifest.json');
-    if (
-      !expectedManifestSha ||
-      sha256HexUtf8(manifestJson) !== expectedManifestSha
-    ) {
-      return false;
-    }
     findManifestArtifact(manifestJson, WITNESS_GEN_NAME);
 
     for (const artifact of listManifestArtifacts(manifestJson)) {
@@ -166,15 +179,45 @@ async function isCachedReleaseValid(
   }
 }
 
+async function isCachedReleaseValid(
+  stagedDir: string,
+  sha256Sums: Map<string, string>,
+): Promise<boolean> {
+  const manifestJson = await readStagedManifest(stagedDir);
+  if (manifestJson === undefined) return false;
+  const expectedManifestSha = sha256Sums.get('manifest.json');
+  if (
+    !expectedManifestSha ||
+    sha256HexUtf8(manifestJson) !== expectedManifestSha
+  ) {
+    return false;
+  }
+  return isStagedManifestValid(stagedDir, manifestJson);
+}
+
+interface ReleaseProgressState {
+  /** Bytes already accounted for by fully-completed artifacts. */
+  releaseBaseBytes: number;
+  /** Total downloaded bytes of the whole release, when known. */
+  releaseTotalBytes: number | undefined;
+}
+
 async function downloadFile(
   url: string,
   destination: string,
   expectedSha256: string,
-  progress: Omit<DownloadReleaseProgress, 'loadedBytes' | 'totalBytes'>,
+  artifactTotalBytes: number | undefined,
+  progress: Pick<
+    DownloadReleaseProgress,
+    'phase' | 'artifact' | 'completedArtifacts' | 'totalArtifacts'
+  >,
+  releaseState: ReleaseProgressState,
   onProgress: ((progress: DownloadReleaseProgress) => void) | undefined,
   fetchImpl: typeof fetch,
+  signal: AbortSignal | undefined,
 ): Promise<void> {
-  const response = await fetchImpl(url);
+  throwIfAborted(signal);
+  const response = await fetchImpl(url, signal ? { signal } : undefined);
   if (!response.ok) {
     throw new Error(`[zkap-zkp] failed to download ${url}: HTTP ${response.status}`);
   }
@@ -183,7 +226,8 @@ async function downloadFile(
   }
 
   await mkdir(dirname(destination), { recursive: true });
-  const expectedBytes = Number(response.headers.get('content-length')) || undefined;
+  const headerBytes = Number(response.headers.get('content-length')) || undefined;
+  const artifactTotal = artifactTotalBytes ?? headerBytes;
   const hash = createHash('sha256');
   let loadedBytes = 0;
 
@@ -191,11 +235,19 @@ async function downloadFile(
     transform(chunk: Buffer, _encoding, callback) {
       loadedBytes += chunk.byteLength;
       hash.update(chunk);
-      onProgress?.({
-        ...progress,
-        loadedBytes,
-        totalBytes: expectedBytes,
-      });
+      const releaseLoadedBytes =
+        releaseState.releaseTotalBytes !== undefined
+          ? releaseState.releaseBaseBytes + loadedBytes
+          : undefined;
+      onProgress?.(
+        buildArtifactProgress(
+          progress,
+          loadedBytes,
+          artifactTotal,
+          releaseLoadedBytes,
+          releaseState.releaseTotalBytes,
+        ),
+      );
       callback(null, chunk);
     },
   });
@@ -213,6 +265,8 @@ async function downloadFile(
       `[zkap-zkp] SHA256 mismatch for ${progress.artifact}: expected ${expectedSha256}, got ${actualSha256}`,
     );
   }
+
+  releaseState.releaseBaseBytes += artifactTotalBytes ?? loadedBytes;
 }
 
 function assertReleaseSha(
@@ -230,13 +284,15 @@ export async function downloadRelease(
   opts: DownloadReleaseOpts,
 ): Promise<DownloadReleaseResult> {
   const fetchImpl = getFetch(opts.fetch);
+  const signal = opts.signal;
   const shape = opts.shape;
   validateReleaseShape(shape);
+  throwIfAborted(signal);
   const sha256SumsName = `${shape}-SHA256SUMS`;
   const sha256SumsUrl = releaseFileUrl(opts.baseUrl, sha256SumsName);
 
   opts.onProgress?.({ phase: 'metadata', artifact: sha256SumsName });
-  const sha256SumsText = await fetchText(sha256SumsUrl, fetchImpl);
+  const sha256SumsText = await fetchText(sha256SumsUrl, fetchImpl, signal);
   const releaseSha = computeReleaseSha(sha256SumsText);
   assertReleaseSha(releaseSha, opts.expectedReleaseSha);
   const sha256Sums = parseSha256Sums(sha256SumsText);
@@ -258,75 +314,141 @@ export async function downloadRelease(
   await rm(tmpStagedDir, { recursive: true, force: true });
   await mkdir(tmpStagedDir, { recursive: true });
 
-  const totalArtifacts = RELEASE_ARTIFACT_NAMES.length + 1;
-  const expectedManifestSha = sha256Sums.get('manifest.json');
-  if (!expectedManifestSha) {
-    throw new Error(`[zkap-zkp] ${sha256SumsName} missing manifest.json`);
-  }
-  await downloadFile(
-    releaseFileUrl(opts.baseUrl, releaseFileName(shape, 'manifest.json')),
-    join(tmpStagedDir, 'manifest.json'),
-    expectedManifestSha,
-    {
-      phase: 'artifact',
-      artifact: 'manifest.json',
-      completedArtifacts: 0,
-      totalArtifacts,
-    },
-    opts.onProgress,
-    fetchImpl,
-  );
-  const manifestJson = await readFile(join(tmpStagedDir, 'manifest.json'), 'utf8');
-
-  let completedArtifacts = 1;
-
-  for (const artifactName of RELEASE_ARTIFACT_NAMES.filter(
-    (name) => name !== 'manifest.json',
-  )) {
-    const expectedSha256 = sha256Sums.get(artifactName);
-    if (!expectedSha256) {
-      throw new Error(
-        `[zkap-zkp] ${sha256SumsName} missing ${artifactName}`,
-      );
+  try {
+    const totalArtifacts = RELEASE_ARTIFACT_NAMES.length + 1;
+    const expectedManifestSha = sha256Sums.get('manifest.json');
+    if (!expectedManifestSha) {
+      throw new Error(`[zkap-zkp] ${sha256SumsName} missing manifest.json`);
     }
 
+    // manifest.json is fetched as a small file; whole-release totals are computed from it.
+    const releaseState: ReleaseProgressState = {
+      releaseBaseBytes: 0,
+      releaseTotalBytes: undefined,
+    };
     await downloadFile(
-      releaseFileUrl(opts.baseUrl, releaseFileName(shape, artifactName)),
-      join(tmpStagedDir, artifactName),
-      expectedSha256,
+      releaseFileUrl(opts.baseUrl, releaseFileName(shape, 'manifest.json')),
+      join(tmpStagedDir, 'manifest.json'),
+      expectedManifestSha,
+      undefined,
       {
         phase: 'artifact',
-        artifact: artifactName,
+        artifact: 'manifest.json',
+        completedArtifacts: 0,
+        totalArtifacts,
+      },
+      releaseState,
+      opts.onProgress,
+      fetchImpl,
+      signal,
+    );
+    const manifestJson = await readFile(join(tmpStagedDir, 'manifest.json'), 'utf8');
+
+    // Whole-release total excludes manifest.json: it is already on disk and tiny.
+    releaseState.releaseTotalBytes = sumManifestBytes(manifestJson, {
+      excludePaths: ['manifest.json'],
+    });
+    releaseState.releaseBaseBytes = 0;
+
+    let completedArtifacts = 1;
+
+    for (const artifactName of RELEASE_ARTIFACT_NAMES.filter(
+      (name) => name !== 'manifest.json',
+    )) {
+      const expectedSha256 = sha256Sums.get(artifactName);
+      if (!expectedSha256) {
+        throw new Error(`[zkap-zkp] ${sha256SumsName} missing ${artifactName}`);
+      }
+
+      await downloadFile(
+        releaseFileUrl(opts.baseUrl, releaseFileName(shape, artifactName)),
+        join(tmpStagedDir, artifactName),
+        expectedSha256,
+        findManifestArtifact(manifestJson, artifactName).size,
+        {
+          phase: 'artifact',
+          artifact: artifactName,
+          completedArtifacts,
+          totalArtifacts,
+        },
+        releaseState,
+        opts.onProgress,
+        fetchImpl,
+        signal,
+      );
+      completedArtifacts += 1;
+    }
+
+    const witnessGen = findManifestArtifact(manifestJson, WITNESS_GEN_NAME);
+    await downloadFile(
+      releaseFileUrl(opts.baseUrl, WITNESS_GEN_NAME),
+      join(tmpStagedDir, WITNESS_GEN_NAME),
+      witnessGen.sha256,
+      witnessGen.size,
+      {
+        phase: 'artifact',
+        artifact: WITNESS_GEN_NAME,
         completedArtifacts,
         totalArtifacts,
       },
+      releaseState,
       opts.onProgress,
       fetchImpl,
+      signal,
     );
-    completedArtifacts += 1;
+
+    opts.onProgress?.({
+      phase: 'stage',
+      completedArtifacts: totalArtifacts,
+      totalArtifacts,
+      releaseLoadedBytes: releaseState.releaseTotalBytes,
+      releaseTotalBytes: releaseState.releaseTotalBytes,
+      percent: releaseState.releaseTotalBytes !== undefined ? 1 : undefined,
+    });
+    await rm(stagedDir, { recursive: true, force: true });
+    await rename(tmpStagedDir, stagedDir);
+
+    opts.onProgress?.({
+      phase: 'done',
+      completedArtifacts: totalArtifacts,
+      totalArtifacts,
+      releaseLoadedBytes: releaseState.releaseTotalBytes,
+      releaseTotalBytes: releaseState.releaseTotalBytes,
+      percent: releaseState.releaseTotalBytes !== undefined ? 1 : undefined,
+    });
+    return { stagedDir, manifestJson, shape, releaseSha };
+  } catch (error) {
+    await rm(tmpStagedDir, { recursive: true, force: true });
+    if (signal?.aborted) {
+      throw makeAbortError();
+    }
+    throw error;
+  }
+}
+
+export async function getCachedReleaseInfo(
+  opts: GetCachedReleaseInfoOpts,
+): Promise<CachedReleaseInfo> {
+  const shape = opts.shape;
+  validateReleaseShape(shape);
+  const releaseSha = opts.expectedReleaseSha.toLowerCase();
+  const cacheRoot = opts.cacheDir ?? tmpdir();
+  const stagedDir = join(cacheRoot, `zkap-release-${releaseSha}-${shape}`);
+
+  const manifestJson = await readStagedManifest(stagedDir);
+  if (manifestJson === undefined) {
+    return { exists: false, valid: false, releaseSha };
   }
 
-  const witnessGen = findManifestArtifact(manifestJson, WITNESS_GEN_NAME);
-  await downloadFile(
-    releaseFileUrl(opts.baseUrl, WITNESS_GEN_NAME),
-    join(tmpStagedDir, WITNESS_GEN_NAME),
-    witnessGen.sha256,
-    {
-      phase: 'artifact',
-      artifact: WITNESS_GEN_NAME,
-      completedArtifacts,
-      totalArtifacts,
-    },
-    opts.onProgress,
-    fetchImpl,
-  );
+  let totalBytes: number | undefined;
+  try {
+    totalBytes = sumManifestBytes(manifestJson);
+  } catch {
+    totalBytes = undefined;
+  }
 
-  opts.onProgress?.({ phase: 'stage', completedArtifacts: totalArtifacts, totalArtifacts });
-  await rm(stagedDir, { recursive: true, force: true });
-  await rename(tmpStagedDir, stagedDir);
-
-  opts.onProgress?.({ phase: 'done', completedArtifacts: totalArtifacts, totalArtifacts });
-  return { stagedDir, manifestJson, shape, releaseSha };
+  const valid = await isStagedManifestValid(stagedDir, manifestJson);
+  return { exists: true, valid, stagedDir, releaseSha, totalBytes };
 }
 
 export async function loadCircuitConfig(

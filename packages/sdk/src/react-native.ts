@@ -9,23 +9,29 @@ import { UnsupportedPlatformError } from './errors';
 import {
   RELEASE_ARTIFACT_NAMES,
   WITNESS_GEN_NAME,
+  buildArtifactProgress,
   computeReleaseSha,
   findManifestArtifact,
   listManifestArtifacts,
+  makeAbortError,
   normalizeCircuitConfig,
   parseSha256Sums,
   releaseFileName,
   releaseFileUrl,
   sha256HexUtf8,
+  sumManifestBytes,
+  throwIfAborted,
   validateReleaseShape,
 } from './release-shared';
 import type {
   AnchorResult,
   AudHashResult,
+  CachedReleaseInfo,
   CircuitConfig,
   DownloadReleaseOpts,
   DownloadReleaseProgress,
   DownloadReleaseResult,
+  GetCachedReleaseInfoOpts,
   LoadReleaseOpts,
   LoadReleaseResult,
   PrepareProverResult,
@@ -138,11 +144,30 @@ interface ExpoFileInfo {
   size?: number;
 }
 
+interface ExpoDownloadProgressData {
+  totalBytesWritten: number;
+  /** Total bytes expected, or `-1` when the server did not send `Content-Length`. */
+  totalBytesExpectedToWrite: number;
+}
+
+interface ExpoDownloadResumable {
+  downloadAsync(): Promise<unknown>;
+  pauseAsync(): Promise<unknown>;
+  resumeAsync(): Promise<unknown>;
+  cancelAsync(): Promise<void>;
+}
+
 interface ExpoFileSystem {
   cacheDirectory?: string | null;
   documentDirectory?: string | null;
   deleteAsync(uri: string, options?: { idempotent?: boolean }): Promise<void>;
-  downloadAsync(url: string, fileUri: string): Promise<unknown>;
+  createDownloadResumable(
+    uri: string,
+    fileUri: string,
+    options?: Record<string, unknown>,
+    callback?: (data: ExpoDownloadProgressData) => void,
+    resumeData?: string,
+  ): ExpoDownloadResumable;
   getInfoAsync(fileUri: string): Promise<ExpoFileInfo>;
   makeDirectoryAsync(uri: string, options?: { intermediates?: boolean }): Promise<void>;
   moveAsync(options: { from: string; to: string }): Promise<void>;
@@ -173,8 +198,9 @@ function getFetch(fetchImpl?: typeof fetch): typeof fetch {
 async function fetchText(
   url: string,
   fetchImpl: typeof fetch,
+  signal?: AbortSignal,
 ): Promise<string> {
-  const response = await fetchImpl(url);
+  const response = await fetchImpl(url, signal ? { signal } : undefined);
   if (!response.ok) {
     throw new Error(`[zkap-zkp] failed to fetch ${url}: HTTP ${response.status}`);
   }
@@ -205,20 +231,28 @@ async function fileSize(
   return typeof info.size === 'number' ? info.size : undefined;
 }
 
-async function isCachedReleaseValid(
+async function readStagedManifest(
   fs: ExpoFileSystem,
   stagedDirUri: string,
-  sha256Sums: Map<string, string>,
+): Promise<string | undefined> {
+  try {
+    return await fs.readAsStringAsync(`${stagedDirUri}manifest.json`);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Validate a staged directory against its own manifest. React Native checks each
+ * artifact's size (not content SHA256) — see {@link downloadRelease} for the rationale.
+ * Fully offline: no SHA256SUMS needed.
+ */
+async function isStagedManifestValid(
+  fs: ExpoFileSystem,
+  stagedDirUri: string,
+  manifestJson: string,
 ): Promise<boolean> {
   try {
-    const manifestJson = await fs.readAsStringAsync(`${stagedDirUri}manifest.json`);
-    const expectedManifestSha = sha256Sums.get('manifest.json');
-    if (
-      !expectedManifestSha ||
-      sha256HexUtf8(manifestJson) !== expectedManifestSha
-    ) {
-      return false;
-    }
     findManifestArtifact(manifestJson, WITNESS_GEN_NAME);
 
     for (const artifact of listManifestArtifacts(manifestJson)) {
@@ -234,15 +268,83 @@ async function isCachedReleaseValid(
   }
 }
 
+async function isCachedReleaseValid(
+  fs: ExpoFileSystem,
+  stagedDirUri: string,
+  sha256Sums: Map<string, string>,
+): Promise<boolean> {
+  const manifestJson = await readStagedManifest(fs, stagedDirUri);
+  if (manifestJson === undefined) return false;
+  const expectedManifestSha = sha256Sums.get('manifest.json');
+  if (
+    !expectedManifestSha ||
+    sha256HexUtf8(manifestJson) !== expectedManifestSha
+  ) {
+    return false;
+  }
+  return isStagedManifestValid(fs, stagedDirUri, manifestJson);
+}
+
+interface ReleaseProgressState {
+  /** Bytes already accounted for by fully-completed artifacts. */
+  releaseBaseBytes: number;
+  /** Total downloaded bytes of the whole release, when known. */
+  releaseTotalBytes: number | undefined;
+}
+
 async function downloadFile(
   fs: ExpoFileSystem,
   url: string,
   destinationUri: string,
   expectedBytes: number | undefined,
-  progress: Omit<DownloadReleaseProgress, 'loadedBytes' | 'totalBytes'>,
+  progress: Pick<
+    DownloadReleaseProgress,
+    'phase' | 'artifact' | 'completedArtifacts' | 'totalArtifacts'
+  >,
+  releaseState: ReleaseProgressState,
   onProgress: ((progress: DownloadReleaseProgress) => void) | undefined,
+  signal: AbortSignal | undefined,
 ): Promise<void> {
-  await fs.downloadAsync(url, destinationUri);
+  throwIfAborted(signal);
+
+  let lastLoaded = 0;
+  const task = fs.createDownloadResumable(
+    url,
+    destinationUri,
+    undefined,
+    (data) => {
+      lastLoaded = data.totalBytesWritten;
+      const artifactTotal =
+        data.totalBytesExpectedToWrite > 0
+          ? data.totalBytesExpectedToWrite
+          : expectedBytes;
+      const releaseLoadedBytes =
+        releaseState.releaseTotalBytes !== undefined
+          ? releaseState.releaseBaseBytes + data.totalBytesWritten
+          : undefined;
+      onProgress?.(
+        buildArtifactProgress(
+          progress,
+          data.totalBytesWritten,
+          artifactTotal,
+          releaseLoadedBytes,
+          releaseState.releaseTotalBytes,
+        ),
+      );
+    },
+  );
+
+  const onAbort = (): void => {
+    void task.cancelAsync();
+  };
+  signal?.addEventListener('abort', onAbort);
+  try {
+    await task.downloadAsync();
+  } finally {
+    signal?.removeEventListener('abort', onAbort);
+  }
+  throwIfAborted(signal);
+
   const actualSize = await fileSize(fs, destinationUri);
   if (expectedBytes !== undefined && actualSize !== expectedBytes) {
     await fs.deleteAsync(destinationUri, { idempotent: true });
@@ -250,11 +352,24 @@ async function downloadFile(
       `[zkap-zkp] downloaded artifact has invalid size for ${progress.artifact}: expected ${expectedBytes}, got ${actualSize ?? 'missing'}`,
     );
   }
-  onProgress?.({
-    ...progress,
-    loadedBytes: actualSize,
-    totalBytes: expectedBytes,
-  });
+
+  // Emit a final per-artifact event so the UI can settle this artifact at 100%.
+  const artifactBytes = actualSize ?? lastLoaded;
+  const advance = expectedBytes ?? artifactBytes;
+  const releaseLoadedBytes =
+    releaseState.releaseTotalBytes !== undefined
+      ? releaseState.releaseBaseBytes + advance
+      : undefined;
+  onProgress?.(
+    buildArtifactProgress(
+      progress,
+      artifactBytes,
+      expectedBytes ?? artifactBytes,
+      releaseLoadedBytes,
+      releaseState.releaseTotalBytes,
+    ),
+  );
+  releaseState.releaseBaseBytes += advance;
 }
 
 function assertReleaseSha(
@@ -273,13 +388,15 @@ export async function downloadRelease(
 ): Promise<DownloadReleaseResult> {
   const fs = await loadExpoFileSystem();
   const fetchImpl = getFetch(opts.fetch);
+  const signal = opts.signal;
   const shape = opts.shape;
   validateReleaseShape(shape);
+  throwIfAborted(signal);
   const sha256SumsName = `${shape}-SHA256SUMS`;
   const sha256SumsUrl = releaseFileUrl(opts.baseUrl, sha256SumsName);
 
   opts.onProgress?.({ phase: 'metadata', artifact: sha256SumsName });
-  const sha256SumsText = await fetchText(sha256SumsUrl, fetchImpl);
+  const sha256SumsText = await fetchText(sha256SumsUrl, fetchImpl, signal);
   const releaseSha = computeReleaseSha(sha256SumsText);
   assertReleaseSha(releaseSha, opts.expectedReleaseSha);
   const sha256Sums = parseSha256Sums(sha256SumsText);
@@ -306,72 +423,145 @@ export async function downloadRelease(
   await fs.deleteAsync(tmpStagedDirUri, { idempotent: true });
   await fs.makeDirectoryAsync(tmpStagedDirUri, { intermediates: true });
 
-  const expectedManifestSha = sha256Sums.get('manifest.json');
-  if (!expectedManifestSha) {
-    throw new Error(`[zkap-zkp] ${sha256SumsName} missing manifest.json`);
-  }
-  const manifestJson = await fetchText(
-    releaseFileUrl(opts.baseUrl, releaseFileName(shape, 'manifest.json')),
-    fetchImpl,
-  );
-  const manifestSha = sha256HexUtf8(manifestJson);
-  if (manifestSha !== expectedManifestSha) {
-    throw new Error(
-      `[zkap-zkp] manifest.json SHA256 mismatch: expected ${expectedManifestSha}, got ${manifestSha}`,
+  try {
+    const expectedManifestSha = sha256Sums.get('manifest.json');
+    if (!expectedManifestSha) {
+      throw new Error(`[zkap-zkp] ${sha256SumsName} missing manifest.json`);
+    }
+    const manifestJson = await fetchText(
+      releaseFileUrl(opts.baseUrl, releaseFileName(shape, 'manifest.json')),
+      fetchImpl,
+      signal,
     );
-  }
-  await fs.writeAsStringAsync(`${tmpStagedDirUri}manifest.json`, manifestJson);
+    const manifestSha = sha256HexUtf8(manifestJson);
+    if (manifestSha !== expectedManifestSha) {
+      throw new Error(
+        `[zkap-zkp] manifest.json SHA256 mismatch: expected ${expectedManifestSha}, got ${manifestSha}`,
+      );
+    }
+    await fs.writeAsStringAsync(`${tmpStagedDirUri}manifest.json`, manifestJson);
 
-  const totalArtifacts = RELEASE_ARTIFACT_NAMES.length + 1;
-  let completedArtifacts = 1;
-  opts.onProgress?.({
-    phase: 'artifact',
-    artifact: 'manifest.json',
-    completedArtifacts: 0,
-    totalArtifacts,
-  });
+    const totalArtifacts = RELEASE_ARTIFACT_NAMES.length + 1;
+    // Whole-release total excludes manifest.json: it is fetched as text above and is tiny.
+    const releaseState: ReleaseProgressState = {
+      releaseBaseBytes: 0,
+      releaseTotalBytes: sumManifestBytes(manifestJson, {
+        excludePaths: ['manifest.json'],
+      }),
+    };
+    let completedArtifacts = 1;
+    opts.onProgress?.({
+      phase: 'artifact',
+      artifact: 'manifest.json',
+      completedArtifacts: 0,
+      totalArtifacts,
+      releaseLoadedBytes: releaseState.releaseTotalBytes !== undefined ? 0 : undefined,
+      releaseTotalBytes: releaseState.releaseTotalBytes,
+      percent: releaseState.releaseTotalBytes !== undefined ? 0 : undefined,
+    });
 
-  for (const artifactName of RELEASE_ARTIFACT_NAMES.filter(
-    (name) => name !== 'manifest.json',
-  )) {
-    const manifestArtifact = findManifestArtifact(manifestJson, artifactName);
+    for (const artifactName of RELEASE_ARTIFACT_NAMES.filter(
+      (name) => name !== 'manifest.json',
+    )) {
+      const manifestArtifact = findManifestArtifact(manifestJson, artifactName);
+      await downloadFile(
+        fs,
+        releaseFileUrl(opts.baseUrl, releaseFileName(shape, artifactName)),
+        `${tmpStagedDirUri}${artifactName}`,
+        manifestArtifact.size,
+        {
+          phase: 'artifact',
+          artifact: artifactName,
+          completedArtifacts,
+          totalArtifacts,
+        },
+        releaseState,
+        opts.onProgress,
+        signal,
+      );
+      completedArtifacts += 1;
+    }
+
+    const witnessGen = findManifestArtifact(manifestJson, WITNESS_GEN_NAME);
     await downloadFile(
       fs,
-      releaseFileUrl(opts.baseUrl, releaseFileName(shape, artifactName)),
-      `${tmpStagedDirUri}${artifactName}`,
-      manifestArtifact.size,
+      releaseFileUrl(opts.baseUrl, WITNESS_GEN_NAME),
+      `${tmpStagedDirUri}${WITNESS_GEN_NAME}`,
+      witnessGen.size,
       {
         phase: 'artifact',
-        artifact: artifactName,
+        artifact: WITNESS_GEN_NAME,
         completedArtifacts,
         totalArtifacts,
       },
+      releaseState,
       opts.onProgress,
+      signal,
     );
-    completedArtifacts += 1;
+
+    opts.onProgress?.({
+      phase: 'stage',
+      completedArtifacts: totalArtifacts,
+      totalArtifacts,
+      releaseLoadedBytes: releaseState.releaseTotalBytes,
+      releaseTotalBytes: releaseState.releaseTotalBytes,
+      percent: releaseState.releaseTotalBytes !== undefined ? 1 : undefined,
+    });
+    await fs.deleteAsync(stagedDirUri, { idempotent: true });
+    await fs.moveAsync({ from: tmpStagedDirUri, to: stagedDirUri });
+    opts.onProgress?.({
+      phase: 'done',
+      completedArtifacts: totalArtifacts,
+      totalArtifacts,
+      releaseLoadedBytes: releaseState.releaseTotalBytes,
+      releaseTotalBytes: releaseState.releaseTotalBytes,
+      percent: releaseState.releaseTotalBytes !== undefined ? 1 : undefined,
+    });
+
+    return { stagedDir: uriToPath(stagedDirUri), manifestJson, shape, releaseSha };
+  } catch (error) {
+    await fs.deleteAsync(tmpStagedDirUri, { idempotent: true });
+    if (signal?.aborted) {
+      throw makeAbortError();
+    }
+    throw error;
+  }
+}
+
+export async function getCachedReleaseInfo(
+  opts: GetCachedReleaseInfoOpts,
+): Promise<CachedReleaseInfo> {
+  validateReleaseShape(opts.shape);
+  const fs = await loadExpoFileSystem();
+  const releaseSha = opts.expectedReleaseSha.toLowerCase();
+  const rootUri = toFileUri(
+    opts.cacheDir ?? fs.cacheDirectory ?? fs.documentDirectory ?? '',
+  );
+  if (rootUri === 'file://') {
+    throw new Error('[zkap-zkp] no React Native filesystem cache directory is available');
+  }
+  const stagedDirUri = `${rootUri}zkap-release-${releaseSha}-${opts.shape}/`;
+
+  const manifestJson = await readStagedManifest(fs, stagedDirUri);
+  if (manifestJson === undefined) {
+    return { exists: false, valid: false, releaseSha };
   }
 
-  const witnessGen = findManifestArtifact(manifestJson, WITNESS_GEN_NAME);
-  await downloadFile(
-    fs,
-    releaseFileUrl(opts.baseUrl, WITNESS_GEN_NAME),
-    `${tmpStagedDirUri}${WITNESS_GEN_NAME}`,
-    witnessGen.size,
-    {
-      phase: 'artifact',
-      artifact: WITNESS_GEN_NAME,
-      completedArtifacts,
-      totalArtifacts,
-    },
-    opts.onProgress,
-  );
+  let totalBytes: number | undefined;
+  try {
+    totalBytes = sumManifestBytes(manifestJson);
+  } catch {
+    totalBytes = undefined;
+  }
 
-  opts.onProgress?.({ phase: 'stage', completedArtifacts: totalArtifacts, totalArtifacts });
-  await fs.deleteAsync(stagedDirUri, { idempotent: true });
-  await fs.moveAsync({ from: tmpStagedDirUri, to: stagedDirUri });
-  opts.onProgress?.({ phase: 'done', completedArtifacts: totalArtifacts, totalArtifacts });
-
-  return { stagedDir: uriToPath(stagedDirUri), manifestJson, shape, releaseSha };
+  const valid = await isStagedManifestValid(fs, stagedDirUri, manifestJson);
+  return {
+    exists: true,
+    valid,
+    stagedDir: uriToPath(stagedDirUri),
+    releaseSha,
+    totalBytes,
+  };
 }
 
 export async function loadCircuitConfig(

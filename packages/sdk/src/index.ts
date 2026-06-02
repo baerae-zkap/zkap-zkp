@@ -10,6 +10,7 @@ export {
   generateHash,
   generateLeafHash,
   downloadRelease,
+  getCachedReleaseInfo,
   loadCircuitConfig,
   loadRelease,
   normalizeCircuitConfig,

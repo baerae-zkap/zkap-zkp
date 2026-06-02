@@ -93,7 +93,9 @@
   "scripts": {
     "build": "node scripts/clean-dist.mjs && tsup",
     "prepack": "npm run build",
-    "test": "npm run build"
+    "test": "npm run build",
+    "test:unit": "vitest run",
+    "test:watch": "vitest"
   },
   "devDependencies": {
     "tsup": "^8.0.0",
