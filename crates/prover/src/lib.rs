@@ -14,4 +14,4 @@ mod error;
 mod release;
 
 pub use error::ReleaseError;
-pub use release::{load_release, LoadedRelease};
+pub use release::{load_release, load_witness_gen, LoadedRelease};

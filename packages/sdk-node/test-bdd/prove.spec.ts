@@ -6,11 +6,14 @@
  * the happy-path fixtures) but written as nested `describe` /
  * `context` / `it` blocks so the spec reads as a behaviour document.
  *
- * Happy-path tests are env-gated by ZKAP_PROOF_FIXTURE_WASM_JSON, a
- * release-style bundle with witness_gen.wasm. ZKAP_PROOF_FIXTURE_JSON is
- * still accepted only for the missing-wasm rejection scenario.
- * When the env var is unset (or its file is missing), the suite for
- * that path calls `this.skip()` cleanly.
+ * Happy-path tests are env-gated by ZKAP_PROOF_FIXTURE_WASM_JSON. Under
+ * the new contract the CRS staged bundle no longer carries
+ * `witness_gen.wasm`; the fixture supplies the witness generator via
+ * `witnessGenPath` + `witnessGenSidecarPath` (whose sha256/compatibility
+ * gates live in the Rust `load_witness_gen` layer, covered by Rust unit
+ * tests + an e2e). ZKAP_PROOF_FIXTURE_JSON still drives the smoke +
+ * adapter-gate suites. When the relevant env var is unset (or its file is
+ * missing), the suite for that path calls `this.skip()` cleanly.
  */
 
 import { expect } from 'chai'
@@ -21,7 +24,6 @@ import { join } from 'node:path'
 import {
   binaryMissing,
   loadBindings,
-  manifestHasWitnessGen,
   skipIfBindingMissing,
 } from './_support/bindings.js'
 import {
@@ -207,30 +209,7 @@ describe('@baerae/zkap-zkp-node • prove', function () {
   })
 
   describe('given a valid request and a real CRS bundle', function () {
-    context('without release witness_gen.wasm', function () {
-      let fixture: ProofFixture | null
-      before(function () {
-        fixture = loadFixture('ZKAP_PROOF_FIXTURE_JSON')
-        if (!fixture) {
-          console.warn(
-            '[prove.spec.ts] ZKAP_PROOF_FIXTURE_JSON missing; missing-wasm negative path skipped.',
-          )
-          this.skip()
-        }
-        if (manifestHasWitnessGen(fixture!.manifestDir)) {
-          throw new Error(
-            `ZKAP_PROOF_FIXTURE_JSON bundle at ${fixture!.manifestDir} unexpectedly registers witness_gen; this fixture should exercise missing-wasm rejection.`,
-          )
-        }
-      })
-
-      it('is rejected before proof generation', function () {
-        const req = { ...fixture!.request, manifestDir: fixture!.manifestDir }
-        expect(() => prove(fixture!.config, req)).to.throw(/witness_gen\.wasm/)
-      })
-    })
-
-    context('using the wasm synthesize path (witness_gen.wasm bundled)', function () {
+    context('using the wasm synthesize path (app-supplied witness generator)', function () {
       let fixture: ProofFixture | null
       before(function () {
         fixture = loadFixture('ZKAP_PROOF_FIXTURE_WASM_JSON')
@@ -240,16 +219,16 @@ describe('@baerae/zkap-zkp-node • prove', function () {
           )
           this.skip()
         }
-        if (!manifestHasWitnessGen(fixture!.manifestDir)) {
-          throw new Error(
-            `ZKAP_PROOF_FIXTURE_WASM_JSON bundle at ${fixture!.manifestDir} does not register witness_gen; this fixture should be wasm-bundled.`,
-          )
-        }
       })
 
       it('returns the proof shape and verifies against pvk', function () {
         this.timeout(600_000)
-        const req = { ...fixture!.request, manifestDir: fixture!.manifestDir }
+        const req = {
+          ...fixture!.request,
+          manifestDir: fixture!.manifestDir,
+          witnessGenPath: fixture!.witnessGenPath,
+          witnessGenSidecarPath: fixture!.witnessGenSidecarPath,
+        }
         const out = prove(fixture!.config, req)
         const k = fixture!.config.k
         expect(out.proofs).to.be.an('array').with.length(k)
@@ -265,7 +244,12 @@ describe('@baerae/zkap-zkp-node • prove', function () {
 
       it('rejects verification when the shared hanchor is tampered with', function () {
         this.timeout(600_000)
-        const req = { ...fixture!.request, manifestDir: fixture!.manifestDir }
+        const req = {
+          ...fixture!.request,
+          manifestDir: fixture!.manifestDir,
+          witnessGenPath: fixture!.witnessGenPath,
+          witnessGenSidecarPath: fixture!.witnessGenSidecarPath,
+        }
         const out = prove(fixture!.config, req)
         expect(verify(fixture!.manifestDir, out).allValid).to.equal(true)
 

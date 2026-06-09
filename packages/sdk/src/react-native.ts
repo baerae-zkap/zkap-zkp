@@ -8,7 +8,6 @@ import {
 import { UnsupportedPlatformError } from './errors';
 import {
   RELEASE_ARTIFACT_NAMES,
-  WITNESS_GEN_NAME,
   computeReleaseSha,
   findManifestArtifact,
   listManifestArtifacts,
@@ -96,6 +95,8 @@ export async function generateLeafHash(
 
 export async function prepareProver(
   _manifestDir: string,
+  _witnessGenPath: string,
+  _witnessGenSidecarPath: string,
 ): Promise<PrepareProverResult> {
   throw new UnsupportedPlatformError(
     'prepareProver',
@@ -219,7 +220,6 @@ async function isCachedReleaseValid(
     ) {
       return false;
     }
-    findManifestArtifact(manifestJson, WITNESS_GEN_NAME);
 
     for (const artifact of listManifestArtifacts(manifestJson)) {
       const actualSize = await fileSize(fs, `${stagedDirUri}${artifact.path}`);
@@ -322,7 +322,7 @@ export async function downloadRelease(
   }
   await fs.writeAsStringAsync(`${tmpStagedDirUri}manifest.json`, manifestJson);
 
-  const totalArtifacts = RELEASE_ARTIFACT_NAMES.length + 1;
+  const totalArtifacts = RELEASE_ARTIFACT_NAMES.length;
   let completedArtifacts = 1;
   opts.onProgress?.({
     phase: 'artifact',
@@ -350,21 +350,6 @@ export async function downloadRelease(
     );
     completedArtifacts += 1;
   }
-
-  const witnessGen = findManifestArtifact(manifestJson, WITNESS_GEN_NAME);
-  await downloadFile(
-    fs,
-    releaseFileUrl(opts.baseUrl, WITNESS_GEN_NAME),
-    `${tmpStagedDirUri}${WITNESS_GEN_NAME}`,
-    witnessGen.size,
-    {
-      phase: 'artifact',
-      artifact: WITNESS_GEN_NAME,
-      completedArtifacts,
-      totalArtifacts,
-    },
-    opts.onProgress,
-  );
 
   opts.onProgress?.({ phase: 'stage', completedArtifacts: totalArtifacts, totalArtifacts });
   await fs.deleteAsync(stagedDirUri, { idempotent: true });

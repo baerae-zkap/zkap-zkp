@@ -84,6 +84,17 @@ export interface JsProveCredential {
 export interface JsProofRequest {
   /** Directory containing `manifest.json` + the CRS bundle. */
   manifestDir: string
+  /**
+   * Absolute path to the app-fetched `witness_gen.wasm`, decoupled
+   * from the CRS `manifest_dir`. Verified against `witness_gen_sidecar_path`
+   * and the CRS's `ar1cs_blake3` before use.
+   */
+  witnessGenPath: string
+  /**
+   * Absolute path to the app-fetched `witness_gen.json` sidecar for
+   * `witness_gen_path`, decoupled from the CRS `manifest_dir`.
+   */
+  witnessGenSidecarPath: string
   /** Randomness salt — BN254 Fr (hex/decimal). */
   random: string
   /** Hash of the signed user-op payload — BN254 Fr (hex/decimal). */
@@ -216,7 +227,7 @@ export interface JsPrepareProverResult {
  * Preload and cache the manifest-backed proving artifacts for later
  * `prove()` calls in the same Node.js process.
  */
-export declare function prepareProver(manifestDir: string): JsPrepareProverResult
+export declare function prepareProver(manifestDir: string, witnessGenPath: string, witnessGenSidecarPath: string): JsPrepareProverResult
 /**
  * Generate Groth16 proofs.
  *

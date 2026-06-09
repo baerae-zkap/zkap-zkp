@@ -1,17 +1,18 @@
-//! Errors surfaced by [`load_release`](crate::load_release).
+//! Errors surfaced by [`load_release`](crate::load_release) and
+//! [`load_witness_gen`](crate::load_witness_gen).
 
 use std::io;
 
 use thiserror::Error;
 
-/// Failure modes of [`load_release`](crate::load_release).
+/// Failure modes of [`load_release`](crate::load_release) and
+/// [`load_witness_gen`](crate::load_witness_gen).
 ///
 /// Categories:
 ///   * `IntegrityFailure` — staged artifact's streaming SHA256 disagreed
-///     with the value in the per-shape `<shape>-SHA256SUMS` or in the
-///     per-shape `manifest.json`'s `artifacts.<key>.sha256`.
-///   * `MissingArtifact` — an expected file (release-dir source or
-///     per-shape sums file) was absent.
+///     with the value in the per-shape `<shape>-SHA256SUMS`.
+///   * `MissingArtifact` — an expected file (release-dir source, per-shape
+///     sums file, or witness-gen wasm / sidecar) was absent.
 ///   * `MalformedManifest` — `<shape>-manifest.json` (or sums file) could
 ///     not be parsed, or did not have the expected shape.
 ///   * `UnknownShape` — caller passed a shape other than `1-of-1` /
@@ -20,6 +21,8 @@ use thiserror::Error;
 ///     lockfile failed.
 ///   * `IoError` — generic filesystem error (open / read / write /
 ///     rename) bubbled up unchanged.
+///   * `Sidecar` — the independently-distributed `witness_gen.wasm` sidecar
+///     failed to parse, validate, or gate (sha mismatch / incompatible CRS).
 #[derive(Debug, Error)]
 pub enum ReleaseError {
     /// Streaming SHA256 of a staged artifact did not match the expected
@@ -57,4 +60,10 @@ pub enum ReleaseError {
     /// Generic IO error during stage / verify.
     #[error("release IO error: {0}")]
     IoError(#[from] io::Error),
+
+    /// The independently-distributed `witness_gen.wasm` sidecar
+    /// ([`load_witness_gen`](crate::load_witness_gen)) failed to parse,
+    /// validate, or gate (sha256 mismatch / incompatible CRS shape).
+    #[error("witness_gen sidecar: {0}")]
+    Sidecar(#[from] zkap_service::SidecarError),
 }

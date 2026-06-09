@@ -22,21 +22,18 @@
  *   3. Adapter shape gates  — wrong number of credentials, wrong
  *                             merkle_path length, leaf index out of
  *                             range.
- *   4. Happy path (opt-in)  — when `ZKAP_PROOF_FIXTURE_JSON` points at
- *                             a JSON file produced by the fixture
- *                             generator, run the full prove flow and
- *                             check structural invariants. The
- *                             `*_JSON` variable feeds the **native
- *                             synthesize** path (bundle without
- *                             `witness_gen.wasm`). The
- *                             `ZKAP_PROOF_FIXTURE_WASM_JSON`
- *                             variable feeds the **wasm synthesize**
- *                             path (bundle with `witness_gen.wasm`
- *                             registered in `manifest.json`). Both
- *                             happy-path tests are independently
- *                             gated and `test.skip` when their
- *                             fixture is missing — opt-in so CI
- *                             without a built wasm doesn't fail.
+ *   4. Happy path (opt-in)  — when `ZKAP_PROOF_FIXTURE_WASM_JSON`
+ *                             points at a JSON file produced by the
+ *                             fixture generator, run the full prove flow
+ *                             and check structural invariants. The
+ *                             fixture supplies the app-side witness
+ *                             generator paths (`witnessGenPath` +
+ *                             `witnessGenSidecarPath`) alongside the
+ *                             CRS `manifestDir`; the staged CRS bundle no
+ *                             longer carries `witness_gen.wasm`. The
+ *                             happy-path test is `test.skip` when the
+ *                             fixture is missing — opt-in so CI without a
+ *                             built wasm doesn't fail.
  *
  * Run after building the native binary:
  *   npm run build:debug && npm test
@@ -294,53 +291,43 @@ itWithCrs('prove: merkle_leaf_idx out of range throws', (t) => {
 // 4. Happy path (opt-in, fixture-driven, release witness wasm)
 // ---------------------------------------------------------------------------
 //
-// Drop a JSON file at the path given by ZKAP_PROOF_FIXTURE_JSON (or
-// ZKAP_PROOF_FIXTURE_WASM_JSON) with shape:
+// Drop a JSON file at the path given by ZKAP_PROOF_FIXTURE_WASM_JSON with
+// shape:
 //   {
-//     "manifestDir": "<abs path to a CRS bundle>",
-//     "config":      { ... JsCircuitConfig fields ... },
-//     "request":     { ... JsProofRequest fields without manifestDir ... }
+//     "manifestDir":           "<abs path to a CRS-only staged bundle>",
+//     "witnessGenPath":        "<abs path to witness_gen.wasm>",
+//     "witnessGenSidecarPath": "<abs path to witness_gen.json>",
+//     "config":                { ... JsCircuitConfig fields ... },
+//     "request":               { ... JsProofRequest fields without
+//                                    manifestDir / witnessGenPath /
+//                                    witnessGenSidecarPath ... }
 //   }
 // `config.n / .k / .treeHeight` must match `manifestDir`'s `config.json`.
 //
-// The supported happy path uses ZKAP_PROOF_FIXTURE_WASM_JSON: a release
-// bundle with witness_gen.wasm registered in manifest.json.
-// Each test independently `test.skip`'s when its fixture is missing.
+// The CRS staged bundle no longer carries `witness_gen.wasm`; the witness
+// generator is supplied via `witnessGenPath` + `witnessGenSidecarPath`,
+// whose sha256/compatibility gates live in the Rust `load_witness_gen`
+// layer (covered by Rust unit tests + an e2e). The happy-path test
+// `test.skip`'s when its fixture is missing.
 
 type ProofFixture = {
   manifestDir: string
+  witnessGenPath: string
+  witnessGenSidecarPath: string
   config: CircuitParams
   request: Omit<ReturnType<typeof placeholderRequest>, 'manifestDir'>
 }
 
-function manifestHasWitnessGen(manifestDir: string): boolean {
-  try {
-    const m = JSON.parse(readFileSync(join(manifestDir, 'manifest.json'), 'utf8')) as {
-      artifacts?: Record<string, unknown>
-    }
-    return !!m.artifacts && 'witness_gen' in m.artifacts
-  } catch {
-    return false
-  }
-}
-
-function runHappyPath(
-  t: import('ava').ExecutionContext,
-  fixturePath: string,
-  opts: { expectWitnessGen: boolean },
-): void {
+function runHappyPath(t: import('ava').ExecutionContext, fixturePath: string): void {
   t.timeout(600_000)
   const fixture = JSON.parse(readFileSync(fixturePath, 'utf8')) as ProofFixture
-  const hasWasm = manifestHasWitnessGen(fixture.manifestDir)
-  t.is(
-    hasWasm,
-    opts.expectWitnessGen,
-    opts.expectWitnessGen
-      ? `bundle at ${fixture.manifestDir} should register witness_gen in manifest.json`
-      : `bundle at ${fixture.manifestDir} should not register witness_gen in manifest.json`,
-  )
 
-  const req = { ...fixture.request, manifestDir: fixture.manifestDir }
+  const req = {
+    ...fixture.request,
+    manifestDir: fixture.manifestDir,
+    witnessGenPath: fixture.witnessGenPath,
+    witnessGenSidecarPath: fixture.witnessGenSidecarPath,
+  }
   const out = prove(fixture.config, req)
 
   const k = fixture.config.k
@@ -362,30 +349,15 @@ function runHappyPath(
   t.true(v.allValid, 'allValid must be true for an honest proof bundle')
 }
 
-// — Missing wasm negative path —
-const NATIVE_FIXTURE_PATH = process.env['ZKAP_PROOF_FIXTURE_JSON']
-const nativeFixtureMissing = !NATIVE_FIXTURE_PATH || !existsSync(NATIVE_FIXTURE_PATH)
+// NOTE: the legacy "prove: fixture without witness_gen.wasm is rejected"
+// test (and its ZKAP_PROOF_FIXTURE_JSON scaffolding) has been removed.
+// Under the new contract `witness_gen.wasm` is never part of the CRS
+// manifest — the integrity (sha256) + compatibility (`compatible_ar1cs_blake3`)
+// gates moved into the Rust `load_witness_gen` layer against the
+// `witness_gen.json` sidecar, and are covered by Rust unit tests + an e2e.
+// There is therefore no JS-observable "missing-wasm" rejection to assert.
 
-if (NATIVE_FIXTURE_PATH && nativeFixtureMissing) {
-  console.warn(
-    `[proof.spec.ts] ZKAP_PROOF_FIXTURE_JSON=${NATIVE_FIXTURE_PATH} not found; missing-wasm negative path skipped.`,
-  )
-}
-
-const itMissingWasm = binaryMissing || nativeFixtureMissing ? test.skip : test
-
-itMissingWasm('prove: fixture without witness_gen.wasm is rejected', (t) => {
-  const fixture = JSON.parse(readFileSync(NATIVE_FIXTURE_PATH!, 'utf8')) as ProofFixture
-  t.false(
-    manifestHasWitnessGen(fixture.manifestDir),
-    `bundle at ${fixture.manifestDir} should not register witness_gen in manifest.json`,
-  )
-  const req = { ...fixture.request, manifestDir: fixture.manifestDir }
-  const err = t.throws(() => prove(fixture.config, req))
-  t.regex(String(err?.message ?? err), /witness_gen\.wasm/)
-})
-
-// — Wasm synthesize path —
+// — Wasm synthesize path (happy path) —
 const WASM_FIXTURE_PATH = process.env['ZKAP_PROOF_FIXTURE_WASM_JSON']
 const wasmFixtureMissing = !WASM_FIXTURE_PATH || !existsSync(WASM_FIXTURE_PATH)
 
@@ -399,7 +371,7 @@ const itHappyWasm = binaryMissing || wasmFixtureMissing ? test.skip : test
 
 itHappyWasm(
   'prove: fixture (wasm synthesize) produces a structurally valid proof bundle',
-  (t) => runHappyPath(t, WASM_FIXTURE_PATH!, { expectWitnessGen: true }),
+  (t) => runHappyPath(t, WASM_FIXTURE_PATH!),
 )
 
 // — Negative cryptographic check: tampering breaks verification —
@@ -408,7 +380,12 @@ const itTamper = binaryMissing || wasmFixtureMissing ? test.skip : test
 itTamper('verify: rejects a proof whose shared `hanchor` was tampered with', (t) => {
   t.timeout(600_000)
   const fixture = JSON.parse(readFileSync(WASM_FIXTURE_PATH!, 'utf8')) as ProofFixture
-  const req = { ...fixture.request, manifestDir: fixture.manifestDir }
+  const req = {
+    ...fixture.request,
+    manifestDir: fixture.manifestDir,
+    witnessGenPath: fixture.witnessGenPath,
+    witnessGenSidecarPath: fixture.witnessGenSidecarPath,
+  }
   const out = prove(fixture.config, req)
 
   // Control: untampered out must verify.

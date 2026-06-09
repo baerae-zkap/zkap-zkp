@@ -78,6 +78,10 @@ export function placeholderRequest(cfg: CircuitParams, manifestDir: string) {
  * `gen_proof_fixture` integration test. */
 export type ProofFixture = {
   manifestDir: string
+  /** App-supplied path to `witness_gen.wasm` (decoupled from the CRS bundle). */
+  witnessGenPath: string
+  /** App-supplied path to the `witness_gen.json` sidecar. */
+  witnessGenSidecarPath: string
   config: CircuitParams
   request: Omit<ReturnType<typeof placeholderRequest>, 'manifestDir'>
 }

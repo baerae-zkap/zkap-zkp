@@ -7,7 +7,7 @@
  * is compatible with `prove(config, { manifestDir, … })`.
  *
  * AC5 scenarios (a)-(i):
- *   (a) 1-of-1 success: 8-file staged set + manifestJson parse + releaseSha shape
+ *   (a) 1-of-1 success: CRS-only staged set + manifestJson parse + releaseSha shape
  *   (b) 3-of-3 success: same shape assertions
  *   (c) missing releaseDir: throws with `loadRelease:` prefix
  *   (d) missing prefix file: deletes `1-of-1-pk.bin`, expects MissingArtifact
@@ -75,6 +75,9 @@ const itLR = binaryMissing || releaseDirMissing ? test.skip : test
 // Helpers
 // ---------------------------------------------------------------------------
 
+// CRS-only staged set: `loadRelease` no longer stages `witness_gen.wasm`
+// (the witness generator is now an app-supplied path passed directly to
+// `prove`/`prepareProver`, not part of the staged CRS bundle).
 const EXPECTED_STAGED_FILES = [
   'Groth16Verifier.sol',
   'circuit.ar1cs',
@@ -83,7 +86,6 @@ const EXPECTED_STAGED_FILES = [
   'pk.bin',
   'pvk.bin',
   'vk.bin',
-  'witness_gen.wasm',
 ].sort()
 
 function sha256File(path: string): string {
@@ -194,7 +196,7 @@ function loadFixtureRelease(opts: {
 // ---------------------------------------------------------------------------
 // (a) 1-of-1 success
 // ---------------------------------------------------------------------------
-itLR('(a) loadRelease({shape: "1-of-1"}) returns staged 8-file bundle', (t) => {
+itLR('(a) loadRelease({shape: "1-of-1"}) returns staged CRS-only bundle', (t) => {
   const result = loadFixtureRelease({ shape: '1-of-1' })
 
   t.is(typeof result.stagedDir, 'string')
@@ -215,7 +217,7 @@ itLR('(a) loadRelease({shape: "1-of-1"}) returns staged 8-file bundle', (t) => {
 // ---------------------------------------------------------------------------
 // (b) 3-of-3 success
 // ---------------------------------------------------------------------------
-itLR('(b) loadRelease({shape: "3-of-3"}) returns staged 8-file bundle', (t) => {
+itLR('(b) loadRelease({shape: "3-of-3"}) returns staged CRS-only bundle', (t) => {
   const result = loadFixtureRelease({ shape: '3-of-3' })
 
   t.is(result.shape, '3-of-3')
@@ -318,7 +320,12 @@ itLR('(f) loadRelease throws MalformedManifest on invalid JSON', (t) => {
   t.regex(err!.message, /MalformedManifest|parse|json/i)
 })
 
-itLR('(f2) loadRelease rejects legacy manifests without witness_gen.wasm', (t) => {
+itLR('(f2) loadRelease succeeds for a CRS-only manifest (no witness_gen entry)', (t) => {
+  // New contract: `loadRelease` stages only the CRS (manifest.json,
+  // circuit.ar1cs, pk/vk/pvk.bin, Groth16Verifier.sol, config.json). The
+  // witness generator is app-supplied directly to `prove`, so a manifest
+  // WITHOUT a `witness_gen` artifact entry is the normal, expected case —
+  // it must load successfully rather than being rejected.
   purgeWarmCacheForShape('1-of-1')
   const copied = copyReleaseDir()
   stagedTmpdirsToCleanup.push(copied)
@@ -337,12 +344,17 @@ itLR('(f2) loadRelease rejects legacy manifests without witness_gen.wasm', (t) =
     createHash('sha256').update(manifestText).digest('hex'),
   )
 
-  const err = t.throws(
-    () => loadFixtureRelease({ releaseDir: copied, shape: '1-of-1' }),
-    { instanceOf: Error },
+  // Must not throw under the new CRS-only contract.
+  const result = loadFixtureRelease({ releaseDir: copied, shape: '1-of-1' })
+  t.is(typeof result.stagedDir, 'string')
+  t.true(existsSync(result.stagedDir), 'a staged directory must be produced')
+
+  // The staged dir is CRS-only and must NOT contain witness_gen.wasm.
+  const stagedFiles = readdirSync(result.stagedDir).filter((f) => !f.endsWith('.lock'))
+  t.false(
+    stagedFiles.includes('witness_gen.wasm'),
+    'staged dir must not contain witness_gen.wasm',
   )
-  t.regex(err!.message, /loadRelease:/)
-  t.regex(err!.message, /incompatible|witness_gen\.wasm|artifacts\.witness_gen/i)
 })
 
 // ---------------------------------------------------------------------------

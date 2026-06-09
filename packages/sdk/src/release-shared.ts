@@ -10,11 +10,7 @@ export const RELEASE_ARTIFACT_NAMES = [
   'config.json',
 ] as const;
 
-export const WITNESS_GEN_NAME = 'witness_gen.wasm';
-
-export type ReleaseArtifactName =
-  | (typeof RELEASE_ARTIFACT_NAMES)[number]
-  | typeof WITNESS_GEN_NAME;
+export type ReleaseArtifactName = (typeof RELEASE_ARTIFACT_NAMES)[number];
 
 export interface ManifestArtifact {
   path: string;
@@ -187,7 +183,7 @@ export function parseSha256Sums(text: string): Map<string, string> {
 }
 
 export function releaseFileName(shape: string, artifactName: string): string {
-  return artifactName === WITNESS_GEN_NAME ? WITNESS_GEN_NAME : `${shape}-${artifactName}`;
+  return `${shape}-${artifactName}`;
 }
 
 export function validateReleaseShape(shape: string): void {
@@ -296,11 +292,6 @@ export function findManifestArtifact(
     (entry) => entry.path === path,
   );
   if (!artifact) {
-    if (path === WITNESS_GEN_NAME) {
-      throw new Error(
-        `[zkap-zkp] incompatible zkap-circuit release: release manifest missing artifact ${WITNESS_GEN_NAME}. Use a zkap-circuit release that includes ${WITNESS_GEN_NAME}.`,
-      );
-    }
     throw new Error(`[zkap-zkp] release manifest missing artifact ${path}`);
   }
   return artifact;

@@ -18,7 +18,6 @@ import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import {
   RELEASE_ARTIFACT_NAMES,
-  WITNESS_GEN_NAME,
   computeReleaseSha,
   findManifestArtifact,
   listManifestArtifacts,
@@ -81,15 +80,17 @@ export async function generateLeafHash(
 
 export async function prepareProver(
   manifestDir: string,
+  witnessGenPath: string,
+  witnessGenSidecarPath: string,
 ): Promise<PrepareProverResult> {
-  return nativePrepareProver(manifestDir);
+  return nativePrepareProver(manifestDir, witnessGenPath, witnessGenSidecarPath);
 }
 
 export async function prove(
   config: CircuitConfig,
   request: ProofRequest,
 ): Promise<ProofOutput> {
-  return nativeProve(config, request);
+  return nativeProve(config, request as Parameters<typeof nativeProve>[1]);
 }
 
 export async function loadRelease(
@@ -146,7 +147,6 @@ async function isCachedReleaseValid(
     ) {
       return false;
     }
-    findManifestArtifact(manifestJson, WITNESS_GEN_NAME);
 
     for (const artifact of listManifestArtifacts(manifestJson)) {
       const artifactPath = join(stagedDir, artifact.path);
@@ -258,7 +258,7 @@ export async function downloadRelease(
   await rm(tmpStagedDir, { recursive: true, force: true });
   await mkdir(tmpStagedDir, { recursive: true });
 
-  const totalArtifacts = RELEASE_ARTIFACT_NAMES.length + 1;
+  const totalArtifacts = RELEASE_ARTIFACT_NAMES.length;
   const expectedManifestSha = sha256Sums.get('manifest.json');
   if (!expectedManifestSha) {
     throw new Error(`[zkap-zkp] ${sha256SumsName} missing manifest.json`);
@@ -305,21 +305,6 @@ export async function downloadRelease(
     );
     completedArtifacts += 1;
   }
-
-  const witnessGen = findManifestArtifact(manifestJson, WITNESS_GEN_NAME);
-  await downloadFile(
-    releaseFileUrl(opts.baseUrl, WITNESS_GEN_NAME),
-    join(tmpStagedDir, WITNESS_GEN_NAME),
-    witnessGen.sha256,
-    {
-      phase: 'artifact',
-      artifact: WITNESS_GEN_NAME,
-      completedArtifacts,
-      totalArtifacts,
-    },
-    opts.onProgress,
-    fetchImpl,
-  );
 
   opts.onProgress?.({ phase: 'stage', completedArtifacts: totalArtifacts, totalArtifacts });
   await rm(stagedDir, { recursive: true, force: true });

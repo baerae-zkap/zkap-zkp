@@ -6,8 +6,8 @@
  * instead of crashing on require.
  */
 
-import { existsSync, readFileSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { existsSync } from 'node:fs'
+import { resolve } from 'node:path'
 
 export const PACKAGE_ROOT = resolve(import.meta.dirname ?? __dirname, '..', '..')
 export const INDEX_JS = resolve(PACKAGE_ROOT, 'index.js')
@@ -44,21 +44,5 @@ export function skipIfBindingMissing(suite: Mocha.Suite | Mocha.Context) {
       console.warn(`[mocha-bdd] Native binary not found at ${INDEX_JS}; suite skipped.`)
       suite.skip()
     }
-  }
-}
-
-/**
- * Manifest helper: returns true iff `manifestDir/manifest.json`
- * registers a `witness_gen` artifact slot. Mirrors the ava-side
- * helper so both suites see the same definition of "wasm-bundled".
- */
-export function manifestHasWitnessGen(manifestDir: string): boolean {
-  try {
-    const m = JSON.parse(readFileSync(join(manifestDir, 'manifest.json'), 'utf8')) as {
-      artifacts?: Record<string, unknown>
-    }
-    return !!m.artifacts && 'witness_gen' in m.artifacts
-  } catch {
-    return false
   }
 }
