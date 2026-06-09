@@ -54,6 +54,16 @@ export interface ProveCredential {
 export interface ProveRequest {
   manifest_dir?: string;
   manifestDir?: string;
+  /**
+   * Absolute path to the app-fetched `witness_gen.wasm`, distributed
+   * independently of the CRS bundle. Verified against the sidecar
+   * (`witness_gen_sidecar_path`) and the CRS `ar1cs_blake3` before use.
+   */
+  witness_gen_path?: string;
+  witnessGenPath?: string;
+  /** Absolute path to the app-fetched `witness_gen.json` sidecar. */
+  witness_gen_sidecar_path?: string;
+  witnessGenSidecarPath?: string;
   random: string;
   h_sign_user_op?: string;
   hSignUserOp?: string;
@@ -173,6 +183,14 @@ function toNativeRequest(request: ProveRequest): ZkapProofRequest {
     manifestDir: requireString(
       request.manifest_dir ?? request.manifestDir,
       'manifest_dir',
+    ),
+    witnessGenPath: requireString(
+      request.witness_gen_path ?? request.witnessGenPath,
+      'witness_gen_path',
+    ),
+    witnessGenSidecarPath: requireString(
+      request.witness_gen_sidecar_path ?? request.witnessGenSidecarPath,
+      'witness_gen_sidecar_path',
     ),
     random: request.random,
     hSignUserOp: requireString(
@@ -304,8 +322,10 @@ export async function generateLeafHash(
 /**
  * Generate Groth16 proofs (on-device proving).
  *
- * Requires a manifest-validated CRS directory containing manifest.json,
- * circuit.ar1cs, pk.bin, vk.bin, pvk.bin, config.json, and witness_gen.wasm.
+ * Requires a manifest-validated CRS directory (manifest.json, circuit.ar1cs,
+ * pk.bin, vk.bin, pvk.bin, config.json) PLUS the independently-distributed
+ * witness generator supplied via `request.witnessGenPath` +
+ * `request.witnessGenSidecarPath` (no longer bundled in the CRS directory).
  */
 export async function prove(
   config: CircuitConfig,

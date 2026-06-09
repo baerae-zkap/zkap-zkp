@@ -38,6 +38,14 @@ export interface JsProveCredential {
 
 export interface JsProofRequest {
   manifestDir: string;
+  /**
+   * Absolute path to the app-fetched `witness_gen.wasm`, distributed
+   * independently of the CRS bundle and verified against the sidecar
+   * (`witnessGenSidecarPath`) + the CRS `ar1cs_blake3` before use.
+   */
+  witnessGenPath: string;
+  /** Absolute path to the app-fetched `witness_gen.json` sidecar. */
+  witnessGenSidecarPath: string;
   random: string;
   hSignUserOp: string;
   anchor: string[];
