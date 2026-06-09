@@ -6,6 +6,7 @@ import {
   prove as rnProve,
 } from '@baerae/zkap-zkp-react-native';
 import { UnsupportedPlatformError } from './errors';
+import { withFormattedMerklePaths } from './merkle';
 import {
   RELEASE_ARTIFACT_NAMES,
   computeReleaseSha,
@@ -37,6 +38,7 @@ import type {
 export * from './errors';
 export * from './types';
 export { normalizeCircuitConfig } from './release-shared';
+export { formatMerklePathForCircuit } from './merkle';
 
 type ReactNativeCircuitConfig = Parameters<typeof rnGenerateAnchor>[0];
 type ReactNativeProofRequest = Parameters<typeof rnProve>[1];
@@ -111,7 +113,7 @@ export async function prove(
 ): Promise<ProofOutput> {
   const result = await rnProve(
     toReactNativeConfig(config),
-    request as unknown as ReactNativeProofRequest,
+    withFormattedMerklePaths(request) as unknown as ReactNativeProofRequest,
   );
   return {
     proofs: result.proofs,

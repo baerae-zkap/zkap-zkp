@@ -32,6 +32,12 @@ export interface JsAudHashResult {
 export interface JsProveCredential {
   jwt: string;
   rsaModulusB64: string;
+  /**
+   * Merkle authentication path as returned by the on-chain
+   * `getMerklePath()` (bottom→root: `[leafSibling, inner_1, …, inner_top]`),
+   * passed verbatim. `prove()` reorders it into the circuit's expected order
+   * via `formatMerklePathForCircuit` — do NOT reorder it yourself.
+   */
   merklePath: string[];
   merkleLeafIdx: number;
 }

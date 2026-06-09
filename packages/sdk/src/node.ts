@@ -9,6 +9,7 @@ import {
   verify as nativeVerify,
 } from '@baerae/zkap-zkp-node';
 import type { JsProofOutput } from './types';
+import { withFormattedMerklePaths } from './merkle';
 import { createHash } from 'node:crypto';
 import { createReadStream, createWriteStream } from 'node:fs';
 import { mkdir, readFile, rename, rm, stat } from 'node:fs/promises';
@@ -47,6 +48,7 @@ import type {
 export * from './errors';
 export * from './types';
 export { normalizeCircuitConfig } from './release-shared';
+export { formatMerklePathForCircuit } from './merkle';
 
 export async function initZkap(): Promise<void> {
   return undefined;
@@ -90,7 +92,10 @@ export async function prove(
   config: CircuitConfig,
   request: ProofRequest,
 ): Promise<ProofOutput> {
-  return nativeProve(config, request as Parameters<typeof nativeProve>[1]);
+  return nativeProve(
+    config,
+    withFormattedMerklePaths(request) as Parameters<typeof nativeProve>[1],
+  );
 }
 
 export async function loadRelease(
