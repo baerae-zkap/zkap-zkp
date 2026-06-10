@@ -13,6 +13,7 @@ use ark_bn254::{Fq, Fq2, G1Affine, G2Affine};
 use ark_ff::PrimeField;
 use ark_serialize::CanonicalDeserialize;
 use napi_derive::napi;
+use sha2::{Digest, Sha256};
 use zkap_service::manifest::Manifest;
 use zkap_service::{
     generate_anchor as service_generate_anchor, generate_audience_hashes, generate_issuer_key_hash,
@@ -97,11 +98,23 @@ fn prover_cache() -> &'static Mutex<HashMap<String, Arc<CachedProver>>> {
     PROVER_CACHE.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-fn manifest_cache_key(dir: &Path) -> String {
-    std::fs::canonicalize(dir)
-        .unwrap_or_else(|_| dir.to_path_buf())
+/// Cache key for a prepared prover. Combines the canonical CRS
+/// `manifest_dir` with the identity of the app-supplied witness_gen
+/// sidecar, so `prepareProver(dir, wasmA)` followed by
+/// `prove(.., wasmB)` cannot reuse a module compiled for a different
+/// witness generator. The sidecar identity is the sha256 of its bytes;
+/// on read error we fall back to the lossy sidecar path so the key
+/// stays distinct.
+fn prover_cache_key(manifest_dir: &Path, sidecar_path: &Path) -> String {
+    let dir = std::fs::canonicalize(manifest_dir)
+        .unwrap_or_else(|_| manifest_dir.to_path_buf())
         .to_string_lossy()
-        .into_owned()
+        .into_owned();
+    let sidecar_id = match std::fs::read(sidecar_path) {
+        Ok(bytes) => hex::encode(Sha256::digest(&bytes)),
+        Err(_) => sidecar_path.to_string_lossy().into_owned(),
+    };
+    format!("{dir}|{sidecar_id}")
 }
 
 fn get_cached_prover(key: &str) -> Option<Arc<CachedProver>> {
@@ -111,7 +124,11 @@ fn get_cached_prover(key: &str) -> Option<Arc<CachedProver>> {
         .and_then(|cache| cache.get(key).cloned())
 }
 
-fn load_prepared_artifacts(dir: &Path) -> napi::Result<PreparedArtifactsLoad> {
+fn load_prepared_artifacts(
+    dir: &Path,
+    witness_gen_path: &Path,
+    sidecar_path: &Path,
+) -> napi::Result<PreparedArtifactsLoad> {
     let total_start = Instant::now();
 
     let manifest_start = Instant::now();
@@ -127,15 +144,13 @@ fn load_prepared_artifacts(dir: &Path) -> napi::Result<PreparedArtifactsLoad> {
     let artifact_load_ms = elapsed_ms(artifact_start);
 
     let wasm_compile_start = Instant::now();
-    let witness_gen_wasm = artifact_set
-        .witness_gen_wasm
-        .as_deref()
-        .map(compile_witness_module)
-        .transpose()
-        .map_err(napi::Error::from_reason)?
-        .ok_or_else(|| {
-            napi::Error::from_reason("manifest does not provide required witness_gen.wasm artifact")
-        })?;
+    // The witness_gen.wasm is now an app-supplied path (+ sidecar),
+    // decoupled from the CRS staged dir. Verify it against the sidecar
+    // and the CRS's `ar1cs_blake3` before compiling.
+    let wasm_bytes =
+        zkap_zkp_prover::load_witness_gen(witness_gen_path, sidecar_path, &manifest.ar1cs_blake3)
+            .map_err(|e| napi::Error::from_reason(format!("load_witness_gen: {e}")))?;
+    let witness_gen_wasm = compile_witness_module(&wasm_bytes).map_err(napi::Error::from_reason)?;
     let wasm_compile_ms = elapsed_ms(wasm_compile_start);
 
     let cfg = artifact_set.cfg.clone();
@@ -199,13 +214,15 @@ fn elapsed_ms(start: Instant) -> f64 {
 
 fn get_or_load_prepared_artifacts(
     dir: &Path,
+    witness_gen_path: &Path,
+    sidecar_path: &Path,
 ) -> napi::Result<(Arc<CachedProver>, f64, bool, Option<JsPrepareProverTiming>)> {
-    let key = manifest_cache_key(dir);
+    let key = prover_cache_key(dir, sidecar_path);
     if let Some(cached) = get_cached_prover(&key) {
         return Ok((cached, 0.0, true, None));
     }
 
-    let loaded = load_prepared_artifacts(dir)?;
+    let loaded = load_prepared_artifacts(dir, witness_gen_path, sidecar_path)?;
     let load_ms = loaded.timing.total_ms;
 
     if let Ok(mut cache) = prover_cache().lock() {
@@ -471,6 +488,13 @@ pub struct JsProveCredential {
 pub struct JsProofRequest {
     /// Directory containing `manifest.json` + the CRS bundle.
     pub manifest_dir: String,
+    /// Absolute path to the app-fetched `witness_gen.wasm`, decoupled
+    /// from the CRS `manifest_dir`. Verified against `witness_gen_sidecar_path`
+    /// and the CRS's `ar1cs_blake3` before use.
+    pub witness_gen_path: String,
+    /// Absolute path to the app-fetched `witness_gen.json` sidecar for
+    /// `witness_gen_path`, decoupled from the CRS `manifest_dir`.
+    pub witness_gen_sidecar_path: String,
     /// Randomness salt — BN254 Fr (hex/decimal).
     pub random: String,
     /// Hash of the signed user-op payload — BN254 Fr (hex/decimal).
@@ -599,9 +623,17 @@ pub struct JsPrepareProverResult {
 /// Preload and cache the manifest-backed proving artifacts for later
 /// `prove()` calls in the same Node.js process.
 #[napi]
-pub fn prepare_prover(manifest_dir: String) -> napi::Result<JsPrepareProverResult> {
+pub fn prepare_prover(
+    manifest_dir: String,
+    witness_gen_path: String,
+    witness_gen_sidecar_path: String,
+) -> napi::Result<JsPrepareProverResult> {
     let dir = Path::new(&manifest_dir);
-    let (_prepared, load_ms, cached, timing) = get_or_load_prepared_artifacts(dir)?;
+    let (_prepared, load_ms, cached, timing) = get_or_load_prepared_artifacts(
+        dir,
+        Path::new(&witness_gen_path),
+        Path::new(&witness_gen_sidecar_path),
+    )?;
     Ok(JsPrepareProverResult {
         load_ms,
         cached,
@@ -656,7 +688,11 @@ fn proof_output_from_response(result: ProveResponse, timing: JsProveTiming) -> J
 pub fn prove(_config: JsCircuitConfig, request: JsProofRequest) -> napi::Result<JsProofOutput> {
     let total_start = Instant::now();
     let dir = Path::new(&request.manifest_dir);
-    let (prepared, load_ms, _cached, _load_timing) = get_or_load_prepared_artifacts(dir)?;
+    let (prepared, load_ms, _cached, _load_timing) = get_or_load_prepared_artifacts(
+        dir,
+        Path::new(&request.witness_gen_path),
+        Path::new(&request.witness_gen_sidecar_path),
+    )?;
 
     let prove_request = js_proof_request_to_native(request);
 

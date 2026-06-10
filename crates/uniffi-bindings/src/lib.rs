@@ -116,9 +116,18 @@ pub struct ZkapProveCredential {
 pub struct ZkapProofRequest {
     /// Directory containing `manifest.json` + the CRS bundle. The
     /// manifest is sha256-validated by `ArtifactSet::load`; witness
-    /// generation runs inside the release-provided `witness_gen.wasm`.
+    /// generation runs inside the app-supplied `witness_gen.wasm` named by
+    /// `witness_gen_path` (verified against `witness_gen_sidecar_path` and
+    /// the CRS's `ar1cs_blake3`), no longer read from this CRS bundle.
     /// `ar1cs_prove` always runs natively against the bundled proving key.
     pub manifest_dir: String,
+    /// Absolute path to the app-fetched `witness_gen.wasm`, decoupled
+    /// from the CRS `manifest_dir`. Verified against `witness_gen_sidecar_path`
+    /// and the CRS's `ar1cs_blake3` before use.
+    pub witness_gen_path: String,
+    /// Absolute path to the app-fetched `witness_gen.json` sidecar for
+    /// `witness_gen_path`, decoupled from the CRS `manifest_dir`.
+    pub witness_gen_sidecar_path: String,
     /// Randomness salt — BN254 Fr (hex/decimal).
     pub random: String,
     /// Hash of the signed user-op payload — BN254 Fr (hex/decimal).
@@ -285,7 +294,13 @@ pub fn prepare_witness_inputs(
     #[cfg(feature = "wasm-witness")]
     {
         let manifest_dir = request.manifest_dir.clone();
-        let (release_config, wasm_bytes) = load_witness_input_artifacts(&manifest_dir)?;
+        let witness_gen_path = request.witness_gen_path.clone();
+        let witness_gen_sidecar_path = request.witness_gen_sidecar_path.clone();
+        let (release_config, wasm_bytes) = load_witness_input_artifacts(
+            &manifest_dir,
+            &witness_gen_path,
+            &witness_gen_sidecar_path,
+        )?;
         let prove_request = to_service_prove_request(request);
         let request_json =
             serde_json::to_vec(&prove_request).map_err(|e| ZkapError::ApplicationError {
@@ -412,18 +427,27 @@ pub fn prove(
         {
             run_native_worker("zkap-prove", move || {
                 let artifact_set = load_artifact_set(&request.manifest_dir)?;
+
+                // Capture the CRS + app-supplied witness_gen paths before
+                // `to_service_prove_request` consumes `request`.
+                let manifest_dir = request.manifest_dir.clone();
+                let witness_gen_path = request.witness_gen_path.clone();
+                let witness_gen_sidecar_path = request.witness_gen_sidecar_path.clone();
                 let prove_request = to_service_prove_request(request);
 
-                // Witness generation must use the release-provided wasm artifact.
-                // ar1cs_prove is always native.
+                // Witness generation uses the app-supplied wasm artifact,
+                // gated on the CRS's `ar1cs_blake3`. ar1cs_prove is always
+                // native.
                 let bundles = {
-                    let wasm_bytes = artifact_set.witness_gen_wasm.as_deref().ok_or_else(|| {
-                        ZkapError::ApplicationError {
-                            message: "manifest does not provide required witness_gen.wasm artifact"
-                                .into(),
-                        }
+                    let wasm_bytes = zkap_zkp_prover::load_witness_gen(
+                        Path::new(&witness_gen_path),
+                        Path::new(&witness_gen_sidecar_path),
+                        &read_crs_ar1cs_blake3(&manifest_dir)?,
+                    )
+                    .map_err(|e| ZkapError::ApplicationError {
+                        message: format!("load_witness_gen: {e}"),
                     })?;
-                    synthesize_via_wasm(wasm_bytes, &prove_request, &artifact_set.cfg)?
+                    synthesize_via_wasm(&wasm_bytes, &prove_request, &artifact_set.cfg)?
                 };
 
                 prove_from_witness_bundles_inner(artifact_set, bundles)
@@ -481,20 +505,48 @@ fn load_artifact_set(manifest_dir: &str) -> Result<ArtifactSet, ZkapError> {
     })
 }
 
+/// Read the CRS `ar1cs_blake3` from `<manifest_dir>/manifest.json`. Used
+/// to gate the app-supplied witness_gen against the CRS shape via
+/// `zkap_zkp_prover::load_witness_gen`.
 #[cfg(feature = "wasm-witness")]
-fn load_witness_input_artifacts(manifest_dir: &str) -> Result<(CircuitConfig, Vec<u8>), ZkapError> {
+fn read_crs_ar1cs_blake3(manifest_dir: &str) -> Result<String, ZkapError> {
     let dir = Path::new(manifest_dir);
     let manifest_bytes =
         std::fs::read(dir.join("manifest.json")).map_err(|e| ZkapError::ApplicationError {
             message: format!("read manifest.json: {e}"),
         })?;
-    let manifest: serde_json::Value =
+    let manifest: Manifest =
+        serde_json::from_slice(&manifest_bytes).map_err(|e| ZkapError::ApplicationError {
+            message: format!("parse manifest.json: {e}"),
+        })?;
+    Ok(manifest.ar1cs_blake3)
+}
+
+#[cfg(feature = "wasm-witness")]
+fn load_witness_input_artifacts(
+    manifest_dir: &str,
+    witness_gen_path: &str,
+    sidecar_path: &str,
+) -> Result<(CircuitConfig, Vec<u8>), ZkapError> {
+    let dir = Path::new(manifest_dir);
+    let manifest_bytes =
+        std::fs::read(dir.join("manifest.json")).map_err(|e| ZkapError::ApplicationError {
+            message: format!("read manifest.json: {e}"),
+        })?;
+    let manifest_value: serde_json::Value =
         serde_json::from_slice(&manifest_bytes).map_err(|e| ZkapError::ApplicationError {
             message: format!("parse manifest.json: {e}"),
         })?;
 
-    let wasm_bytes = read_verified_manifest_artifact(dir, &manifest, "witness_gen")?;
-    let config_bytes = read_verified_manifest_artifact(dir, &manifest, "circuit_config")?;
+    let wasm_bytes = zkap_zkp_prover::load_witness_gen(
+        Path::new(witness_gen_path),
+        Path::new(sidecar_path),
+        &read_crs_ar1cs_blake3(manifest_dir)?,
+    )
+    .map_err(|e| ZkapError::ApplicationError {
+        message: format!("load_witness_gen: {e}"),
+    })?;
+    let config_bytes = read_verified_manifest_artifact(dir, &manifest_value, "circuit_config")?;
     let release_config =
         serde_json::from_slice(&config_bytes).map_err(|e| ZkapError::ApplicationError {
             message: format!("parse config.json: {e}"),
@@ -513,12 +565,7 @@ fn read_verified_manifest_artifact(
         .get("artifacts")
         .and_then(|artifacts| artifacts.get(key))
         .ok_or_else(|| ZkapError::ApplicationError {
-            message: match key {
-                "witness_gen" => {
-                    "manifest does not provide required witness_gen.wasm artifact".into()
-                }
-                _ => format!("manifest does not provide required {key} artifact"),
-            },
+            message: format!("manifest does not provide required {key} artifact"),
         })?;
     let relative_path = artifact
         .get("path")

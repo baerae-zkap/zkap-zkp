@@ -1,4 +1,4 @@
-import type { CircuitConfig } from './types';
+import type { CircuitConfig, DownloadReleaseProgress } from './types';
 
 export const RELEASE_ARTIFACT_NAMES = [
   'manifest.json',
@@ -10,11 +10,7 @@ export const RELEASE_ARTIFACT_NAMES = [
   'config.json',
 ] as const;
 
-export const WITNESS_GEN_NAME = 'witness_gen.wasm';
-
-export type ReleaseArtifactName =
-  | (typeof RELEASE_ARTIFACT_NAMES)[number]
-  | typeof WITNESS_GEN_NAME;
+export type ReleaseArtifactName = (typeof RELEASE_ARTIFACT_NAMES)[number];
 
 export interface ManifestArtifact {
   path: string;
@@ -187,7 +183,7 @@ export function parseSha256Sums(text: string): Map<string, string> {
 }
 
 export function releaseFileName(shape: string, artifactName: string): string {
-  return artifactName === WITNESS_GEN_NAME ? WITNESS_GEN_NAME : `${shape}-${artifactName}`;
+  return `${shape}-${artifactName}`;
 }
 
 export function validateReleaseShape(shape: string): void {
@@ -296,12 +292,80 @@ export function findManifestArtifact(
     (entry) => entry.path === path,
   );
   if (!artifact) {
-    if (path === WITNESS_GEN_NAME) {
-      throw new Error(
-        `[zkap-zkp] incompatible zkap-circuit release: release manifest missing artifact ${WITNESS_GEN_NAME}. Use a zkap-circuit release that includes ${WITNESS_GEN_NAME}.`,
-      );
-    }
     throw new Error(`[zkap-zkp] release manifest missing artifact ${path}`);
   }
   return artifact;
+}
+
+/**
+ * Sum the declared byte sizes of the manifest artifacts. Returns `undefined` when any
+ * relevant artifact is missing a `size`, so callers can distinguish "unknown" from `0`.
+ *
+ * Pass `excludePaths` to skip artifacts that are not downloaded as metered files
+ * (for example `manifest.json`, which `downloadRelease()` fetches as text).
+ */
+export function sumManifestBytes(
+  manifestJson: string,
+  options?: { excludePaths?: readonly string[] },
+): number | undefined {
+  const exclude = new Set(options?.excludePaths ?? []);
+  let total = 0;
+  for (const artifact of listManifestArtifacts(manifestJson)) {
+    if (exclude.has(artifact.path)) continue;
+    if (artifact.size === undefined) return undefined;
+    total += artifact.size;
+  }
+  return total;
+}
+
+/** Build a DOM-compatible `AbortError` so callers can match `error.name === 'AbortError'`. */
+export function makeAbortError(
+  message = '[zkap-zkp] downloadRelease was aborted',
+): Error {
+  const error = new Error(message);
+  error.name = 'AbortError';
+  return error;
+}
+
+/** Throw an `AbortError` when the signal is already aborted. */
+export function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) {
+    throw makeAbortError();
+  }
+}
+
+/**
+ * Build a `DownloadReleaseProgress` event for an in-flight artifact download.
+ *
+ * Populates both the deprecated `loadedBytes`/`totalBytes` fields (artifact-scoped, for
+ * backwards compatibility) and the explicit `artifact*`/`release*`/`percent` fields. Shared
+ * by the Node and React Native `downloadRelease()` implementations so progress semantics
+ * stay identical across runtimes.
+ */
+export function buildArtifactProgress(
+  base: Pick<
+    DownloadReleaseProgress,
+    'phase' | 'artifact' | 'completedArtifacts' | 'totalArtifacts'
+  >,
+  artifactLoadedBytes: number,
+  artifactTotalBytes: number | undefined,
+  releaseLoadedBytes: number | undefined,
+  releaseTotalBytes: number | undefined,
+): DownloadReleaseProgress {
+  const percent =
+    releaseTotalBytes !== undefined &&
+    releaseTotalBytes > 0 &&
+    releaseLoadedBytes !== undefined
+      ? Math.min(1, releaseLoadedBytes / releaseTotalBytes)
+      : undefined;
+  return {
+    ...base,
+    loadedBytes: artifactLoadedBytes,
+    totalBytes: artifactTotalBytes,
+    artifactLoadedBytes,
+    artifactTotalBytes,
+    releaseLoadedBytes,
+    releaseTotalBytes,
+    percent,
+  };
 }

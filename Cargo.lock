@@ -104,8 +104,8 @@ dependencies = [
 
 [[package]]
 name = "ark-codec"
-version = "0.1.1-rc.2"
-source = "git+https://github.com/snp-labs/zkap-circuit.git?tag=v0.1.1-rc.2#e79624e53a689902efc7d47c0bb46aa0f094cfa0"
+version = "0.1.1-rc.3"
+source = "git+https://github.com/snp-labs/zkap-circuit.git?tag=v0.1.1-rc.3#1985bc3b443f6bef2d30493db534becc172116ac"
 dependencies = [
  "ark-ec 0.6.0",
  "ark-ff 0.6.0",
@@ -342,8 +342,8 @@ dependencies = [
 
 [[package]]
 name = "ark-r1cs-helpers"
-version = "0.1.1-rc.2"
-source = "git+https://github.com/snp-labs/zkap-circuit.git?tag=v0.1.1-rc.2#e79624e53a689902efc7d47c0bb46aa0f094cfa0"
+version = "0.1.1-rc.3"
+source = "git+https://github.com/snp-labs/zkap-circuit.git?tag=v0.1.1-rc.3#1985bc3b443f6bef2d30493db534becc172116ac"
 dependencies = [
  "ark-ff 0.6.0",
  "ark-r1cs-std",
@@ -692,8 +692,8 @@ dependencies = [
 
 [[package]]
 name = "circuit"
-version = "0.1.1-rc.2"
-source = "git+https://github.com/snp-labs/zkap-circuit.git?tag=v0.1.1-rc.2#e79624e53a689902efc7d47c0bb46aa0f094cfa0"
+version = "0.1.1-rc.3"
+source = "git+https://github.com/snp-labs/zkap-circuit.git?tag=v0.1.1-rc.3#1985bc3b443f6bef2d30493db534becc172116ac"
 dependencies = [
  "ark-bn254 0.6.0",
  "ark-crypto-primitives",
@@ -1217,8 +1217,8 @@ dependencies = [
 
 [[package]]
 name = "gadget"
-version = "0.1.1-rc.2"
-source = "git+https://github.com/snp-labs/zkap-circuit.git?tag=v0.1.1-rc.2#e79624e53a689902efc7d47c0bb46aa0f094cfa0"
+version = "0.1.1-rc.3"
+source = "git+https://github.com/snp-labs/zkap-circuit.git?tag=v0.1.1-rc.3#1985bc3b443f6bef2d30493db534becc172116ac"
 dependencies = [
  "ark-bn254 0.6.0",
  "ark-crypto-primitives",
@@ -3550,8 +3550,8 @@ dependencies = [
 
 [[package]]
 name = "zkap-evm-verifier"
-version = "0.1.1-rc.2"
-source = "git+https://github.com/snp-labs/zkap-circuit.git?tag=v0.1.1-rc.2#e79624e53a689902efc7d47c0bb46aa0f094cfa0"
+version = "0.1.1-rc.3"
+source = "git+https://github.com/snp-labs/zkap-circuit.git?tag=v0.1.1-rc.3#1985bc3b443f6bef2d30493db534becc172116ac"
 dependencies = [
  "ark-ec 0.6.0",
  "ark-ff 0.6.0",
@@ -3562,8 +3562,8 @@ dependencies = [
 
 [[package]]
 name = "zkap-service"
-version = "0.1.1-rc.2"
-source = "git+https://github.com/snp-labs/zkap-circuit.git?tag=v0.1.1-rc.2#e79624e53a689902efc7d47c0bb46aa0f094cfa0"
+version = "0.1.1-rc.3"
+source = "git+https://github.com/snp-labs/zkap-circuit.git?tag=v0.1.1-rc.3#1985bc3b443f6bef2d30493db534becc172116ac"
 dependencies = [
  "ark-ar1cs",
  "ark-bn254 0.6.0",
@@ -3621,6 +3621,7 @@ dependencies = [
  "napi-derive",
  "serde",
  "serde_json",
+ "sha2",
  "wasmtime",
  "zkap-service",
  "zkap-zkp-prover",
@@ -3635,6 +3636,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "thiserror 1.0.69",
+ "zkap-service",
 ]
 
 [[package]]

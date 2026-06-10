@@ -32,12 +32,32 @@ export interface JsAudHashResult {
 export interface JsProveCredential {
   jwt: string;
   rsaModulusB64: string;
+  /**
+   * Merkle authentication path as returned by the on-chain
+   * `getMerklePath()` (bottom→root: `[leafSibling, inner_1, …, inner_top]`),
+   * passed verbatim. `prove()` reorders it into the circuit's expected order
+   * via `formatMerklePathForCircuit` — do NOT reorder it yourself.
+   */
   merklePath: string[];
   merkleLeafIdx: number;
 }
 
 export interface JsProofRequest {
   manifestDir: string;
+  /**
+   * Absolute path to the app-fetched `witness_gen.wasm`, distributed
+   * independently of the CRS bundle and verified against the sidecar
+   * (`witnessGenSidecarPath`) + the CRS `ar1cs_blake3` before use.
+   *
+   * Optional at the facade boundary: when both `witnessGenPath` and
+   * `witnessGenSidecarPath` are omitted, the runtime falls back to the
+   * co-located default (`<manifestDir>/witness_gen.wasm` +
+   * `<manifestDir>/witness_gen.json`). The native layer always receives
+   * resolved, non-empty paths.
+   */
+  witnessGenPath?: string;
+  /** Absolute path to the app-fetched `witness_gen.json` sidecar. */
+  witnessGenSidecarPath?: string;
   random: string;
   hSignUserOp: string;
   anchor: string[];
@@ -162,11 +182,34 @@ export type ReleaseShape = '1-of-1' | '3-of-3' | (string & {});
 
 export interface DownloadReleaseProgress {
   phase: 'metadata' | 'artifact' | 'stage' | 'done';
+  /** Name of the artifact currently being downloaded, when `phase` is `"artifact"`. */
   artifact?: string;
+  /**
+   * Bytes loaded for the **current artifact**.
+   * @deprecated Ambiguous name kept for backwards compatibility. Use `artifactLoadedBytes`
+   * for per-artifact progress or `releaseLoadedBytes`/`percent` for whole-release progress.
+   */
   loadedBytes?: number;
+  /**
+   * Total bytes of the **current artifact**, when known.
+   * @deprecated Ambiguous name kept for backwards compatibility. Use `artifactTotalBytes`
+   * for the per-artifact total or `releaseTotalBytes` for the whole-release total.
+   */
   totalBytes?: number;
+  /** Bytes downloaded so far for the current artifact. */
+  artifactLoadedBytes?: number;
+  /** Total bytes of the current artifact, when known. */
+  artifactTotalBytes?: number;
+  /** Bytes downloaded so far across the whole release. Monotonically increasing. */
+  releaseLoadedBytes?: number;
+  /** Total bytes of the whole release (sum of downloaded manifest artifact sizes), when known. */
+  releaseTotalBytes?: number;
+  /** Number of artifacts fully downloaded. */
   completedArtifacts?: number;
+  /** Total number of artifacts in the release. */
   totalArtifacts?: number;
+  /** Whole-release progress in `[0, 1]`, present only when `releaseTotalBytes` is known. */
+  percent?: number;
 }
 
 export interface DownloadReleaseOpts {
@@ -184,9 +227,44 @@ export interface DownloadReleaseOpts {
   fetch?: typeof fetch;
   /** Progress callback for metadata, per-artifact download, and staging. */
   onProgress?: (progress: DownloadReleaseProgress) => void;
+  /**
+   * Optional abort signal. When aborted, the in-flight download is cancelled, the
+   * staging temp directory is removed, and the returned promise rejects with an
+   * `AbortError`. Already-staged cache directories are left intact.
+   */
+  signal?: AbortSignal;
 }
 
 export type DownloadReleaseResult = LoadReleaseResult;
+
+export interface GetCachedReleaseInfoOpts {
+  /** Cache root. Defaults to `os.tmpdir()` on Node and app cache on React Native. */
+  cacheDir?: string;
+  /** Release shape, for example `"1-of-1"` or `"3-of-3"`. */
+  shape: ReleaseShape;
+  /**
+   * Pinned first-16 SHA256 of `<shape>-SHA256SUMS`. Required to locate the staged
+   * directory without any network request.
+   */
+  expectedReleaseSha: string;
+}
+
+export interface CachedReleaseInfo {
+  /** A staged directory for this `(releaseSha, shape)` exists. */
+  exists: boolean;
+  /**
+   * The staged directory passes integrity checks and can be used by `prove()`.
+   * On Node this re-verifies each artifact's content SHA256 against the manifest;
+   * on React Native it verifies each artifact's size against the manifest.
+   */
+  valid: boolean;
+  /** Absolute path to the staged directory, present when `exists` is `true`. */
+  stagedDir?: string;
+  /** The release SHA the lookup was performed for. */
+  releaseSha?: string;
+  /** Total bytes of the staged release (sum of manifest artifact sizes), when known. */
+  totalBytes?: number;
+}
 
 export interface ProofOutput {
   proofs: string[][];
@@ -194,4 +272,77 @@ export interface ProofOutput {
   partialRhsList: string[];
   jwtExpList: string[];
   timing?: ProveTiming;
+}
+
+/**
+ * Sidecar JSON shipped alongside `witness_gen.wasm` in the witness-generator
+ * channel. Carries the wasm's content `sha256` (verified after download,
+ * fail-closed) and the CRS `ar1cs_blake3` it is compatible with.
+ */
+export interface WitnessGenSidecar {
+  /** Lowercase hex SHA256 of the companion `witness_gen.wasm`. */
+  sha256: string;
+  /** BLAKE3 of the `circuit.ar1cs` this witness generator is built for. */
+  compatibleAr1csBlake3?: string;
+}
+
+export interface DownloadWitnessGenProgress {
+  phase: 'metadata' | 'artifact' | 'done';
+  /** Name of the file currently being downloaded, when `phase` is `"artifact"`. */
+  artifact?: 'witness_gen.json' | 'witness_gen.wasm';
+  /** Bytes downloaded so far for the current file. */
+  artifactLoadedBytes?: number;
+  /** Total bytes of the current file, when known. */
+  artifactTotalBytes?: number;
+}
+
+export interface DownloadWitnessGenOpts {
+  /**
+   * Base URL of the witness-generator channel hosting `witness_gen.wasm` and
+   * `witness_gen.json`. Distributed independently of the CRS release.
+   */
+  baseUrl: string;
+  /** Optional cache root. Defaults to `os.tmpdir()` on Node and app cache on React Native. */
+  cacheDir?: string;
+  /** Re-download even when both cached files appear usable. */
+  force?: boolean;
+  /** Fetch implementation override for tests or custom networking. */
+  fetch?: typeof fetch;
+  /**
+   * Optional abort signal. When aborted the in-flight download is cancelled and
+   * the returned promise rejects with an `AbortError`.
+   */
+  signal?: AbortSignal;
+  /** Progress callback for metadata and per-file download. */
+  onProgress?: (progress: DownloadWitnessGenProgress) => void;
+}
+
+export interface DownloadWitnessGenResult {
+  /** Absolute (plain, non-`file://`) path to the cached `witness_gen.wasm`. */
+  wasmPath: string;
+  /** Absolute (plain, non-`file://`) path to the cached `witness_gen.json` sidecar. */
+  sidecarPath: string;
+  /** The base URL the witness generator was fetched from. */
+  baseUrl: string;
+}
+
+export interface GetCachedWitnessGenInfoOpts {
+  /** Base URL of the witness-generator channel. Keys the cache directory. */
+  baseUrl: string;
+  /** Cache root. Defaults to `os.tmpdir()` on Node and app cache on React Native. */
+  cacheDir?: string;
+}
+
+export interface CachedWitnessGenInfo {
+  /** Both cached files (wasm + sidecar) exist on disk. */
+  exists: boolean;
+  /**
+   * The cached wasm's content SHA256 matches the cached sidecar's `sha256`
+   * field and can be passed to `prove()`.
+   */
+  valid: boolean;
+  /** Absolute path to the cached `witness_gen.wasm`, present when `exists` is `true`. */
+  wasmPath?: string;
+  /** Absolute path to the cached `witness_gen.json`, present when `exists` is `true`. */
+  sidecarPath?: string;
 }

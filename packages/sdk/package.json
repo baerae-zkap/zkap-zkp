@@ -1,6 +1,6 @@
 {
   "name": "@baerae/zkap-zkp",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Compatibility facade for the zkap-zkp runtime SDK packages.",
   "main": "./dist/node.cjs",
   "module": "./dist/node.mjs",
@@ -71,9 +71,9 @@
     "access": "public"
   },
   "peerDependencies": {
-    "@baerae/zkap-zkp-node": "0.1.7",
-    "@baerae/zkap-zkp-react-native": "0.1.7",
-    "@baerae/zkap-zkp-wasm": "0.1.7",
+    "@baerae/zkap-zkp-node": "0.1.8",
+    "@baerae/zkap-zkp-react-native": "0.1.8",
+    "@baerae/zkap-zkp-wasm": "0.1.8",
     "expo-file-system": ">=17"
   },
   "peerDependenciesMeta": {
@@ -93,7 +93,9 @@
   "scripts": {
     "build": "node scripts/clean-dist.mjs && tsup",
     "prepack": "npm run build",
-    "test": "npm run build"
+    "test": "npm run build",
+    "test:unit": "vitest run",
+    "test:watch": "vitest"
   },
   "devDependencies": {
     "tsup": "^8.0.0",

@@ -3,6 +3,10 @@
 //! unprefixed staged directory under `std::env::temp_dir()` that
 //! `ArtifactSet::load_unsigned` can consume directly via `manifest_dir`.
 //!
+//! The loader is **CRS-only**: it stages the 7 per-shape CRS artifacts and
+//! nothing else. `witness_gen.wasm` is distributed independently of the CRS
+//! (see [`load_witness_gen`]); it is no longer part of this bundle.
+//!
 //! ## Layout
 //!
 //! Source (per `release_dir`, written by zkap-circuit):
@@ -18,8 +22,7 @@
 //!   1-of-1-config.json
 //!   1-of-1-SHA256SUMS          # entries: 7 unprefixed names
 //!   3-of-3-* (same set)
-//!   witness_gen.wasm           # shared across shapes
-//!   SHA256SUMS                 # top-level (prefixed names + witness_gen.wasm)
+//!   SHA256SUMS                 # top-level (prefixed names)
 //!   generate_hash, generate_setup       # CLI binaries — NOT staged
 //! ```
 //!
@@ -34,7 +37,6 @@
 //!   pvk.bin
 //!   Groth16Verifier.sol
 //!   config.json
-//!   witness_gen.wasm
 //! ```
 //!
 //! ## Cache key
@@ -59,6 +61,7 @@ use std::path::{Path, PathBuf};
 
 use fs2::FileExt;
 use sha2::{Digest, Sha256};
+use zkap_service::WitnessGenSidecar;
 
 use crate::error::ReleaseError;
 
@@ -79,6 +82,11 @@ pub struct LoadedRelease {
     /// it to read `manifest_version`, `circuit_id`, etc., without
     /// re-opening the file.
     pub manifest_json: String,
+    /// The CRS shape identity (`ar1cs_blake3`) parsed from the staged
+    /// `manifest.json`. Pass this to [`load_witness_gen`] as
+    /// `crs_ar1cs_blake3` to gate an independently-distributed
+    /// `witness_gen.wasm` against the loaded CRS shape.
+    pub ar1cs_blake3: String,
 }
 
 /// Shapes accepted by the loader. Anything else → [`ReleaseError::UnknownShape`].
@@ -96,16 +104,6 @@ const PER_SHAPE_ARTIFACTS: &[&str] = &[
     "Groth16Verifier.sol",
     "config.json",
 ];
-
-/// The witness-gen wasm artifact lives at the release-dir root (shared
-/// across shapes). It is **not** in `<shape>-SHA256SUMS`; its expected
-/// SHA is read from `manifest.artifacts.witness_gen.sha256`.
-const WITNESS_GEN_NAME: &str = "witness_gen.wasm";
-const WITNESS_GEN_COMPAT_MESSAGE: &str = concat!(
-    "witness_gen.wasm is required by zkap-zkp wasm witness proving; ",
-    "use a zkap-circuit release that includes witness_gen.wasm and ",
-    "manifest artifacts.witness_gen.sha256"
-);
 
 /// Load a zkap-circuit release bundle into a SHA-verified unprefixed
 /// staged directory.
@@ -187,13 +185,32 @@ pub fn load_release(release_dir: &Path, shape: &str) -> Result<LoadedRelease, Re
     let _ = FileExt::unlock(&lock_file);
 
     let manifest_json = outcome?;
+    let ar1cs_blake3 = extract_ar1cs_blake3(&manifest_json)?;
 
     Ok(LoadedRelease {
         staged_dir,
         release_sha,
         shape: shape.to_string(),
         manifest_json,
+        ar1cs_blake3,
     })
+}
+
+/// Pull the CRS shape identity (`ar1cs_blake3`) out of the per-shape
+/// manifest. Returns [`ReleaseError::MalformedManifest`] if the JSON is
+/// invalid or the field is missing / not a string.
+fn extract_ar1cs_blake3(manifest_text: &str) -> Result<String, ReleaseError> {
+    let v: serde_json::Value = serde_json::from_str(manifest_text)
+        .map_err(|e| ReleaseError::MalformedManifest(format!("manifest.json: {e}")))?;
+    let blake3 = v
+        .get("ar1cs_blake3")
+        .and_then(|s| s.as_str())
+        .ok_or_else(|| {
+            ReleaseError::MalformedManifest(
+                "manifest.json: ar1cs_blake3 missing or not a string".to_string(),
+            )
+        })?;
+    Ok(blake3.to_string())
 }
 
 /// Parse a `sha256sum`-style file (`<hex>  <name>\n` per line). Lines that
@@ -313,26 +330,9 @@ fn verify_existing_stage(
         }
     }
 
-    // Then parse the staged manifest and verify witness_gen.wasm against
-    // it (witness_gen is not in <shape>-SHA256SUMS).
+    // Return the staged manifest text. The loader is CRS-only;
+    // witness_gen.wasm is distributed independently (see load_witness_gen).
     let manifest_text = fs::read_to_string(staged_dir.join("manifest.json"))?;
-    let witness_expected = extract_witness_gen_sha(&manifest_text)?;
-    let witness_path = staged_dir.join(WITNESS_GEN_NAME);
-    if !witness_path.exists() {
-        return Err(ReleaseError::MissingArtifact(format!(
-            "{} (warm-cache check; {WITNESS_GEN_COMPAT_MESSAGE})",
-            witness_path.display(),
-        )));
-    }
-    let witness_actual = sha256_file(&witness_path)?;
-    if witness_actual != witness_expected {
-        return Err(ReleaseError::IntegrityFailure {
-            artifact: WITNESS_GEN_NAME.to_string(),
-            expected: witness_expected,
-            actual: witness_actual,
-        });
-    }
-
     Ok(manifest_text)
 }
 
@@ -375,37 +375,10 @@ fn stage_cold(
         }
     }
 
-    // Stage the shared witness_gen.wasm and verify against the manifest
-    // we just staged (already SHA-verified above).
+    // Read back the staged manifest text (already SHA-verified above). The
+    // loader is CRS-only; witness_gen.wasm is distributed independently
+    // (see load_witness_gen).
     let manifest_text = fs::read_to_string(tmp_dir.join("manifest.json"))?;
-    let witness_expected = match extract_witness_gen_sha(&manifest_text) {
-        Ok(s) => s,
-        Err(e) => {
-            let _ = fs::remove_dir_all(tmp_dir);
-            return Err(e);
-        }
-    };
-
-    let witness_src = release_dir.join(WITNESS_GEN_NAME);
-    let witness_dst = tmp_dir.join(WITNESS_GEN_NAME);
-    if !witness_src.exists() {
-        let _ = fs::remove_dir_all(tmp_dir);
-        return Err(ReleaseError::MissingArtifact(format!(
-            "{} ({WITNESS_GEN_COMPAT_MESSAGE})",
-            witness_src.display(),
-        )));
-    }
-    let witness_actual = copy_and_hash(&witness_src, &witness_dst).inspect_err(|_e| {
-        let _ = fs::remove_dir_all(tmp_dir);
-    })?;
-    if witness_actual != witness_expected {
-        let _ = fs::remove_dir_all(tmp_dir);
-        return Err(ReleaseError::IntegrityFailure {
-            artifact: WITNESS_GEN_NAME.to_string(),
-            expected: witness_expected,
-            actual: witness_actual,
-        });
-    }
 
     // The lock serializes all writers for this cache key, so any existing
     // final directory here is stale or incomplete. Replace it with the
@@ -421,23 +394,154 @@ fn stage_cold(
     Ok(manifest_text)
 }
 
-/// Pull `artifacts.witness_gen.sha256` out of the per-shape manifest.
-/// Returns [`ReleaseError::MalformedManifest`] if the JSON is invalid or
-/// the field is missing.
-fn extract_witness_gen_sha(manifest_text: &str) -> Result<String, ReleaseError> {
-    let v: serde_json::Value = serde_json::from_str(manifest_text)
-        .map_err(|e| ReleaseError::MalformedManifest(format!("manifest.json: {e}")))?;
-    let sha = v
-        .get("artifacts")
-        .and_then(|a| a.get("witness_gen"))
-        .and_then(|w| w.get("sha256"))
-        .and_then(|s| s.as_str())
-        .ok_or_else(|| {
-            ReleaseError::MalformedManifest(
-                format!(
-                    "manifest.json: artifacts.witness_gen.sha256 missing or not a string ({WITNESS_GEN_COMPAT_MESSAGE})"
-                ),
-            )
-        })?;
-    Ok(sha.to_ascii_lowercase())
+/// Load and verify an independently-distributed `witness_gen.wasm` against
+/// its sidecar. `wasm_path`/`sidecar_path` come from the app (fetched from
+/// the witness-gen release channel), decoupled from the CRS `manifest_dir`.
+/// `crs_ar1cs_blake3` is the loaded CRS's `ar1cs_blake3` (see
+/// [`LoadedRelease::ar1cs_blake3`]). Verifies sidecar sha256(wasm) and that
+/// the CRS shape is in `compatible_ar1cs_blake3`; returns the wasm bytes.
+pub fn load_witness_gen(
+    wasm_path: &Path,
+    sidecar_path: &Path,
+    crs_ar1cs_blake3: &str,
+) -> Result<Vec<u8>, ReleaseError> {
+    let sidecar_bytes = fs::read(sidecar_path).map_err(|e| {
+        if e.kind() == std::io::ErrorKind::NotFound {
+            ReleaseError::MissingArtifact(format!("{}", sidecar_path.display()))
+        } else {
+            ReleaseError::IoError(e)
+        }
+    })?;
+    let sidecar = WitnessGenSidecar::from_json(&sidecar_bytes)?;
+
+    let wasm_bytes = fs::read(wasm_path).map_err(|e| {
+        if e.kind() == std::io::ErrorKind::NotFound {
+            ReleaseError::MissingArtifact(format!("{}", wasm_path.display()))
+        } else {
+            ReleaseError::IoError(e)
+        }
+    })?;
+
+    sidecar.verify_wasm_sha(&wasm_bytes)?;
+    sidecar.require_compatible(crs_ar1cs_blake3)?;
+
+    Ok(wasm_bytes)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    /// A real CRS `ar1cs_blake3` shape (64 lowercase-hex). Listed in the
+    /// sidecar's `compatible_ar1cs_blake3` for the happy-path tests.
+    const BLAKE3_KNOWN: &str = "1111111111111111111111111111111111111111111111111111111111111111";
+    /// A different valid 64-lc-hex shape, deliberately NOT listed.
+    const BLAKE3_OTHER: &str = "2222222222222222222222222222222222222222222222222222222222222222";
+
+    /// Unique scratch dir under the OS tmpdir — no `tempfile` dep in this
+    /// crate, matching the loader's own reliance on `std::env::temp_dir()`.
+    fn scratch_dir() -> PathBuf {
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+        let dir = std::env::temp_dir().join(format!(
+            "zkap-prover-test-{}-{nanos}-{n}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn sha256_hex(bytes: &[u8]) -> String {
+        hex::encode(Sha256::digest(bytes))
+    }
+
+    /// Write a `witness_gen.wasm` + `witness_gen.json` sidecar into `dir`,
+    /// returning (wasm_path, sidecar_path). `sha` / `compatible` are written
+    /// verbatim so callers can inject a wrong sha or an incompatible list.
+    fn write_fixture(
+        dir: &Path,
+        wasm: &[u8],
+        sha: &str,
+        compatible: &[&str],
+    ) -> (PathBuf, PathBuf) {
+        let wasm_path = dir.join("witness_gen.wasm");
+        fs::write(&wasm_path, wasm).unwrap();
+        let sidecar_path = dir.join("witness_gen.json");
+        let compat = compatible
+            .iter()
+            .map(|c| format!("\"{c}\""))
+            .collect::<Vec<_>>()
+            .join(",");
+        let json = format!(
+            "{{\"version\":\"v0.0.0-test\",\"sha256\":\"{sha}\",\"compatible_ar1cs_blake3\":[{compat}]}}"
+        );
+        fs::write(&sidecar_path, json).unwrap();
+        (wasm_path, sidecar_path)
+    }
+
+    #[test]
+    fn load_witness_gen_ok_when_sha_and_shape_match() {
+        let dir = scratch_dir();
+        let wasm = b"synthetic witness_gen bytes \x00\x01\x02".as_slice();
+        let sha = sha256_hex(wasm);
+        let (wasm_path, sidecar_path) = write_fixture(&dir, wasm, &sha, &[BLAKE3_KNOWN]);
+
+        let bytes = load_witness_gen(&wasm_path, &sidecar_path, BLAKE3_KNOWN)
+            .expect("matching sha + compatible shape must load");
+        assert_eq!(bytes, wasm);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn load_witness_gen_rejects_wrong_sha() {
+        let dir = scratch_dir();
+        let wasm = b"synthetic witness_gen bytes".as_slice();
+        // Valid 64-lc-hex but NOT the sha of `wasm` → ShaMismatch.
+        let wrong_sha = "0".repeat(64);
+        let (wasm_path, sidecar_path) = write_fixture(&dir, wasm, &wrong_sha, &[BLAKE3_KNOWN]);
+
+        let err = load_witness_gen(&wasm_path, &sidecar_path, BLAKE3_KNOWN)
+            .expect_err("wrong sha in sidecar must error");
+        assert!(matches!(err, ReleaseError::Sidecar(_)), "got {err:?}");
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn load_witness_gen_rejects_incompatible_shape() {
+        let dir = scratch_dir();
+        let wasm = b"synthetic witness_gen bytes".as_slice();
+        let sha = sha256_hex(wasm);
+        // Sidecar lists only BLAKE3_OTHER; the CRS shape is BLAKE3_KNOWN.
+        let (wasm_path, sidecar_path) = write_fixture(&dir, wasm, &sha, &[BLAKE3_OTHER]);
+
+        let err = load_witness_gen(&wasm_path, &sidecar_path, BLAKE3_KNOWN)
+            .expect_err("CRS shape not in compatible list must error");
+        assert!(matches!(err, ReleaseError::Sidecar(_)), "got {err:?}");
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn load_witness_gen_rejects_malformed_sidecar_json() {
+        let dir = scratch_dir();
+        let wasm = b"synthetic witness_gen bytes".as_slice();
+        let wasm_path = dir.join("witness_gen.wasm");
+        fs::write(&wasm_path, wasm).unwrap();
+        let sidecar_path = dir.join("witness_gen.json");
+        fs::write(&sidecar_path, b"{ this is not valid json").unwrap();
+
+        let err = load_witness_gen(&wasm_path, &sidecar_path, BLAKE3_KNOWN)
+            .expect_err("malformed sidecar JSON must error");
+        assert!(matches!(err, ReleaseError::Sidecar(_)), "got {err:?}");
+
+        let _ = fs::remove_dir_all(&dir);
+    }
 }
