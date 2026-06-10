@@ -48,10 +48,16 @@ export interface JsProofRequest {
    * Absolute path to the app-fetched `witness_gen.wasm`, distributed
    * independently of the CRS bundle and verified against the sidecar
    * (`witnessGenSidecarPath`) + the CRS `ar1cs_blake3` before use.
+   *
+   * Optional at the facade boundary: when both `witnessGenPath` and
+   * `witnessGenSidecarPath` are omitted, the runtime falls back to the
+   * co-located default (`<manifestDir>/witness_gen.wasm` +
+   * `<manifestDir>/witness_gen.json`). The native layer always receives
+   * resolved, non-empty paths.
    */
-  witnessGenPath: string;
+  witnessGenPath?: string;
   /** Absolute path to the app-fetched `witness_gen.json` sidecar. */
-  witnessGenSidecarPath: string;
+  witnessGenSidecarPath?: string;
   random: string;
   hSignUserOp: string;
   anchor: string[];
@@ -266,4 +272,77 @@ export interface ProofOutput {
   partialRhsList: string[];
   jwtExpList: string[];
   timing?: ProveTiming;
+}
+
+/**
+ * Sidecar JSON shipped alongside `witness_gen.wasm` in the witness-generator
+ * channel. Carries the wasm's content `sha256` (verified after download,
+ * fail-closed) and the CRS `ar1cs_blake3` it is compatible with.
+ */
+export interface WitnessGenSidecar {
+  /** Lowercase hex SHA256 of the companion `witness_gen.wasm`. */
+  sha256: string;
+  /** BLAKE3 of the `circuit.ar1cs` this witness generator is built for. */
+  compatibleAr1csBlake3?: string;
+}
+
+export interface DownloadWitnessGenProgress {
+  phase: 'metadata' | 'artifact' | 'done';
+  /** Name of the file currently being downloaded, when `phase` is `"artifact"`. */
+  artifact?: 'witness_gen.json' | 'witness_gen.wasm';
+  /** Bytes downloaded so far for the current file. */
+  artifactLoadedBytes?: number;
+  /** Total bytes of the current file, when known. */
+  artifactTotalBytes?: number;
+}
+
+export interface DownloadWitnessGenOpts {
+  /**
+   * Base URL of the witness-generator channel hosting `witness_gen.wasm` and
+   * `witness_gen.json`. Distributed independently of the CRS release.
+   */
+  baseUrl: string;
+  /** Optional cache root. Defaults to `os.tmpdir()` on Node and app cache on React Native. */
+  cacheDir?: string;
+  /** Re-download even when both cached files appear usable. */
+  force?: boolean;
+  /** Fetch implementation override for tests or custom networking. */
+  fetch?: typeof fetch;
+  /**
+   * Optional abort signal. When aborted the in-flight download is cancelled and
+   * the returned promise rejects with an `AbortError`.
+   */
+  signal?: AbortSignal;
+  /** Progress callback for metadata and per-file download. */
+  onProgress?: (progress: DownloadWitnessGenProgress) => void;
+}
+
+export interface DownloadWitnessGenResult {
+  /** Absolute (plain, non-`file://`) path to the cached `witness_gen.wasm`. */
+  wasmPath: string;
+  /** Absolute (plain, non-`file://`) path to the cached `witness_gen.json` sidecar. */
+  sidecarPath: string;
+  /** The base URL the witness generator was fetched from. */
+  baseUrl: string;
+}
+
+export interface GetCachedWitnessGenInfoOpts {
+  /** Base URL of the witness-generator channel. Keys the cache directory. */
+  baseUrl: string;
+  /** Cache root. Defaults to `os.tmpdir()` on Node and app cache on React Native. */
+  cacheDir?: string;
+}
+
+export interface CachedWitnessGenInfo {
+  /** Both cached files (wasm + sidecar) exist on disk. */
+  exists: boolean;
+  /**
+   * The cached wasm's content SHA256 matches the cached sidecar's `sha256`
+   * field and can be passed to `prove()`.
+   */
+  valid: boolean;
+  /** Absolute path to the cached `witness_gen.wasm`, present when `exists` is `true`. */
+  wasmPath?: string;
+  /** Absolute path to the cached `witness_gen.json`, present when `exists` is `true`. */
+  sidecarPath?: string;
 }

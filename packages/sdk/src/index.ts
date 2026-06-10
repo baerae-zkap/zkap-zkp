@@ -10,12 +10,15 @@ export {
   generateHash,
   generateLeafHash,
   downloadRelease,
+  downloadWitnessGen,
   getCachedReleaseInfo,
+  getCachedWitnessGenInfo,
   loadCircuitConfig,
   loadRelease,
   normalizeCircuitConfig,
   prepareProver,
   prove,
+  resolveWitnessGenPaths,
   verify,
 } from './node';
 

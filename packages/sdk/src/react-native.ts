@@ -27,11 +27,16 @@ import type {
   AnchorResult,
   AudHashResult,
   CachedReleaseInfo,
+  CachedWitnessGenInfo,
   CircuitConfig,
   DownloadReleaseOpts,
   DownloadReleaseProgress,
   DownloadReleaseResult,
+  DownloadWitnessGenOpts,
+  DownloadWitnessGenProgress,
+  DownloadWitnessGenResult,
   GetCachedReleaseInfoOpts,
+  GetCachedWitnessGenInfoOpts,
   LoadReleaseOpts,
   LoadReleaseResult,
   PrepareProverResult,
@@ -39,6 +44,7 @@ import type {
   ProofRequest,
   Secret,
   VerifyOutput,
+  WitnessGenSidecar,
 } from './types';
 
 export * from './errors';
@@ -103,8 +109,8 @@ export async function generateLeafHash(
 
 export async function prepareProver(
   _manifestDir: string,
-  _witnessGenPath: string,
-  _witnessGenSidecarPath: string,
+  _witnessGenPath?: string,
+  _witnessGenSidecarPath?: string,
 ): Promise<PrepareProverResult> {
   throw new UnsupportedPlatformError(
     'prepareProver',
@@ -113,13 +119,52 @@ export async function prepareProver(
   );
 }
 
+/**
+ * Resolve the witness-generator paths for `prove()`.
+ *
+ * - Both omitted → co-located default (`<manifestDir>/witness_gen.wasm` +
+ *   `<manifestDir>/witness_gen.json`); `manifestDir` is a plain path.
+ * - Both provided → use them verbatim.
+ * - Exactly one provided → throw, since a half-specified pair is always a bug.
+ */
+export function resolveWitnessGenPaths(
+  manifestDir: string,
+  witnessGenPath?: string,
+  witnessGenSidecarPath?: string,
+): { wasmPath: string; sidecarPath: string } {
+  const hasWasm = witnessGenPath !== undefined;
+  const hasSidecar = witnessGenSidecarPath !== undefined;
+  if (hasWasm !== hasSidecar) {
+    throw new Error(
+      '[zkap-zkp] witnessGenPath and witnessGenSidecarPath must be provided together, or both omitted to use the co-located default.',
+    );
+  }
+  if (hasWasm && hasSidecar) {
+    return { wasmPath: witnessGenPath!, sidecarPath: witnessGenSidecarPath! };
+  }
+  const base = manifestDir.replace(/\/+$/, '');
+  return {
+    wasmPath: `${base}/witness_gen.wasm`,
+    sidecarPath: `${base}/witness_gen.json`,
+  };
+}
+
 export async function prove(
   config: CircuitConfig,
   request: ProofRequest,
 ): Promise<ProofOutput> {
+  const { wasmPath, sidecarPath } = resolveWitnessGenPaths(
+    request.manifestDir,
+    request.witnessGenPath,
+    request.witnessGenSidecarPath,
+  );
   const result = await rnProve(
     toReactNativeConfig(config),
-    withFormattedMerklePaths(request) as unknown as ReactNativeProofRequest,
+    withFormattedMerklePaths({
+      ...request,
+      witnessGenPath: wasmPath,
+      witnessGenSidecarPath: sidecarPath,
+    }) as unknown as ReactNativeProofRequest,
   );
   return {
     proofs: result.proofs,
@@ -574,4 +619,197 @@ export async function verify(
     'react-native',
     '[zkap-zkp] verify is only available in the Node.js runtime.',
   );
+}
+
+// ── Witness generator (independent distribution) ─────────────────────────────
+//
+// witness_gen.wasm is NOT part of the CRS release. It ships in its own channel
+// (a base URL hosting witness_gen.wasm + witness_gen.json). downloadWitnessGen()
+// stages both — sidecar first, so a partial wasm can never masquerade as a
+// complete cache entry — and returns plain (file://-stripped) paths for prove().
+//
+// Unlike Node, React Native does NOT re-hash the cached wasm in JS (there is no
+// binary-safe JS hashing path here, matching downloadRelease's size-only RN
+// validation). It verifies both files exist and are non-empty, and the wasm's
+// content SHA256 is enforced fail-closed by the native prove() gate.
+
+const WITNESS_GEN_WASM_NAME = 'witness_gen.wasm';
+const WITNESS_GEN_SIDECAR_NAME = 'witness_gen.json';
+
+/** Derive a filesystem-safe, base-URL-keyed cache subdirectory name. */
+function witnessGenCacheTag(baseUrl: string): string {
+  const cleanBase = baseUrl.replace(/\/+$/, '');
+  const safe = cleanBase.replace(/[^a-zA-Z0-9]/g, '_').slice(-56);
+  return `zkap-witness-gen-${sha256HexUtf8(cleanBase).slice(0, 16)}-${safe}`;
+}
+
+function parseWitnessGenSidecar(sidecarJson: string): WitnessGenSidecar {
+  const parsed = JSON.parse(sidecarJson) as unknown;
+  if (
+    typeof parsed !== 'object' ||
+    parsed === null ||
+    typeof (parsed as { sha256?: unknown }).sha256 !== 'string'
+  ) {
+    throw new Error('[zkap-zkp] malformed witness_gen.json: sha256 missing');
+  }
+  return parsed as WitnessGenSidecar;
+}
+
+async function isCachedWitnessGenValid(
+  fs: ExpoFileSystem,
+  wasmUri: string,
+  sidecarUri: string,
+): Promise<boolean> {
+  try {
+    const sidecarSize = await fileSize(fs, sidecarUri);
+    if (sidecarSize === undefined) return false;
+    const wasmSize = await fileSize(fs, wasmUri);
+    if (wasmSize === undefined || wasmSize === 0) return false;
+    // Sidecar must parse and declare a sha256 (content SHA is checked at prove time).
+    parseWitnessGenSidecar(await fs.readAsStringAsync(sidecarUri));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function downloadWitnessGenFile(
+  fs: ExpoFileSystem,
+  url: string,
+  destinationUri: string,
+  artifact: 'witness_gen.json' | 'witness_gen.wasm',
+  onProgress: ((p: DownloadWitnessGenProgress) => void) | undefined,
+  signal: AbortSignal | undefined,
+): Promise<void> {
+  throwIfAborted(signal);
+  const task = fs.createDownloadResumable(
+    url,
+    destinationUri,
+    undefined,
+    (data) => {
+      onProgress?.({
+        phase: 'artifact',
+        artifact,
+        artifactLoadedBytes: data.totalBytesWritten,
+        artifactTotalBytes:
+          data.totalBytesExpectedToWrite > 0
+            ? data.totalBytesExpectedToWrite
+            : undefined,
+      });
+    },
+  );
+
+  const onAbort = (): void => {
+    void task.cancelAsync();
+  };
+  signal?.addEventListener('abort', onAbort);
+  try {
+    await task.downloadAsync();
+  } finally {
+    signal?.removeEventListener('abort', onAbort);
+  }
+  throwIfAborted(signal);
+}
+
+export async function downloadWitnessGen(
+  opts: DownloadWitnessGenOpts,
+): Promise<DownloadWitnessGenResult> {
+  const fs = await loadExpoFileSystem();
+  // Validate fetch availability for parity with downloadRelease, even though the
+  // expo downloader performs the network IO.
+  getFetch(opts.fetch);
+  const signal = opts.signal;
+  const baseUrl = opts.baseUrl.replace(/\/+$/, '');
+  throwIfAborted(signal);
+
+  const rootUri = toFileUri(
+    opts.cacheDir ?? fs.cacheDirectory ?? fs.documentDirectory ?? '',
+  );
+  if (rootUri === 'file://') {
+    throw new Error('[zkap-zkp] no React Native filesystem cache directory is available');
+  }
+  const dirUri = `${rootUri}${witnessGenCacheTag(baseUrl)}/`;
+  const wasmUri = `${dirUri}${WITNESS_GEN_WASM_NAME}`;
+  const sidecarUri = `${dirUri}${WITNESS_GEN_SIDECAR_NAME}`;
+
+  if (!opts.force && (await isCachedWitnessGenValid(fs, wasmUri, sidecarUri))) {
+    opts.onProgress?.({ phase: 'done' });
+    return {
+      wasmPath: uriToPath(wasmUri),
+      sidecarPath: uriToPath(sidecarUri),
+      baseUrl,
+    };
+  }
+
+  await fs.makeDirectoryAsync(dirUri, { intermediates: true }).catch(
+    () => undefined,
+  );
+
+  // Sidecar first: a wasm-only partial can never masquerade as a complete entry.
+  opts.onProgress?.({ phase: 'metadata', artifact: 'witness_gen.json' });
+  await fs.deleteAsync(sidecarUri, { idempotent: true });
+  await downloadWitnessGenFile(
+    fs,
+    `${baseUrl}/${WITNESS_GEN_SIDECAR_NAME}`,
+    sidecarUri,
+    'witness_gen.json',
+    opts.onProgress,
+    signal,
+  );
+  // Parse to fail fast on a malformed sidecar before fetching the (larger) wasm.
+  parseWitnessGenSidecar(await fs.readAsStringAsync(sidecarUri));
+
+  await fs.deleteAsync(wasmUri, { idempotent: true });
+  await downloadWitnessGenFile(
+    fs,
+    `${baseUrl}/${WITNESS_GEN_WASM_NAME}`,
+    wasmUri,
+    'witness_gen.wasm',
+    opts.onProgress,
+    signal,
+  );
+
+  const wasmSize = await fileSize(fs, wasmUri);
+  if (wasmSize === undefined || wasmSize === 0) {
+    await fs.deleteAsync(wasmUri, { idempotent: true });
+    throw new Error('[zkap-zkp] downloaded witness_gen.wasm is missing or empty');
+  }
+
+  opts.onProgress?.({ phase: 'done' });
+  return {
+    wasmPath: uriToPath(wasmUri),
+    sidecarPath: uriToPath(sidecarUri),
+    baseUrl,
+  };
+}
+
+export async function getCachedWitnessGenInfo(
+  opts: GetCachedWitnessGenInfoOpts,
+): Promise<CachedWitnessGenInfo> {
+  const fs = await loadExpoFileSystem();
+  const baseUrl = opts.baseUrl.replace(/\/+$/, '');
+  const rootUri = toFileUri(
+    opts.cacheDir ?? fs.cacheDirectory ?? fs.documentDirectory ?? '',
+  );
+  if (rootUri === 'file://') {
+    throw new Error('[zkap-zkp] no React Native filesystem cache directory is available');
+  }
+  const dirUri = `${rootUri}${witnessGenCacheTag(baseUrl)}/`;
+  const wasmUri = `${dirUri}${WITNESS_GEN_WASM_NAME}`;
+  const sidecarUri = `${dirUri}${WITNESS_GEN_SIDECAR_NAME}`;
+
+  const exists =
+    (await fileSize(fs, wasmUri)) !== undefined &&
+    (await fileSize(fs, sidecarUri)) !== undefined;
+  if (!exists) {
+    return { exists: false, valid: false };
+  }
+
+  const valid = await isCachedWitnessGenValid(fs, wasmUri, sidecarUri);
+  return {
+    exists: true,
+    valid,
+    wasmPath: uriToPath(wasmUri),
+    sidecarPath: uriToPath(sidecarUri),
+  };
 }
