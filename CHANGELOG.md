@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.1.9] - 2026-06-10
+
+### Changed
+
+- **BREAKING — `@baerae/zkap-zkp/node-sync` now formats the Merkle authentication path inside `prove()`**, matching the async `node` facade and `react-native`. The synchronous facade previously re-exported the native `prove` verbatim, so the on-chain `getMerklePath()` auth path reached the prover unformatted and failed the issuer-key Merkle-membership constraint (`InvalidProveRequest … issuer-key leaf is not a member of merkle_root`) unless the caller reordered it. Synchronous callers now pass the contract path verbatim; the SDK reorders it exactly once via `formatMerklePathForCircuit`. Any caller- or server-side reversal must be removed to avoid a double-reverse (which fails the same constraint). `node-sync` also re-exports `formatMerklePathForCircuit` / `withFormattedMerklePaths` to match `node`, so all proving facades (`node`, `node-sync`, `react-native`) return identical output for identical input.
+
 ## [0.1.8] - 2026-06-10
 
 ### Added
