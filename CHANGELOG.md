@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-06-10
+
+### Added
+
+- **`downloadRelease` now reports progress and supports cancellation.** Callers can pass a progress callback (per-artifact byte progress via `buildArtifactProgress`) and an `AbortSignal`; a cached staged release is validated fully offline against its own `manifest.json` (`isStagedManifestValid` — every artifact's size and content SHA256 must match) instead of requiring a `SHA256SUMS` fetch.
+- **`downloadWitnessGen` URL channel.** The witness generator (`witness_gen.wasm` + `witness_gen.json` sidecar) is fetched from witness-gen's own release channel; `prove()` defaults to the witness-gen artifacts co-located with the CRS release when no explicit paths are given.
+
+### Changed
+
+- **BREAKING — `witness_gen.wasm` is now an independent path + sidecar, not read from the signed CRS manifest.** zkap-circuit Phase 2 removed `manifest.artifacts.witness_gen`, so the app now supplies `witness_gen.wasm` + a `witness_gen.json` sidecar as separate local paths. Integrity (sha256) and compatibility (`compatible_ar1cs_blake3` vs the CRS `ar1cs_blake3`) are verified against the sidecar, fail-closed. `prepareProver(manifestDir, witnessGenPath, witnessGenSidecarPath)` (was 1-arg); `ProofRequest` / `JsProofRequest` / uniffi `ZkapProofRequest` gain required `witnessGenPath` + `witnessGenSidecarPath`. No back-compat window. Builds against the published `zkap-service` v0.1.1-rc.3 (sidecar schema + `load_witness_gen`).
+- **BREAKING — the Merkle authentication path is now formatted inside `prove()`.** Callers pass the on-chain auth path verbatim; the SDK reorders it internally (the previous caller-side reversal must be removed to avoid a double-reverse).
+
 ## [0.1.7] - 2026-06-01
 
 ### Fixed
