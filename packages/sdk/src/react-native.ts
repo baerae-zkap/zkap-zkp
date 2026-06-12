@@ -184,8 +184,6 @@ export async function loadRelease(
   );
 }
 
-const EXPO_FILE_SYSTEM_LEGACY_MODULE = 'expo-file-system/legacy';
-
 interface ExpoFileInfo {
   exists: boolean;
   isDirectory?: boolean;
@@ -225,7 +223,11 @@ interface ExpoFileSystem {
 
 async function loadExpoFileSystem(): Promise<ExpoFileSystem> {
   try {
-    return (await import(EXPO_FILE_SYSTEM_LEGACY_MODULE)) as ExpoFileSystem;
+    // Use a STRING LITERAL specifier: Metro (React Native) cannot bundle
+    // `import()` with a variable argument — the module is omitted from the
+    // bundle and the dynamic import fails at runtime. A literal lets Metro
+    // statically include expo-file-system/legacy. (Node/vitest worked either way.)
+    return (await import('expo-file-system/legacy')) as ExpoFileSystem;
   } catch (error) {
     const wrapped = new Error(
       '[zkap-zkp] downloadRelease/loadCircuitConfig in React Native require expo-file-system. Install it with `npx expo install expo-file-system`.',
