@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.1.10] - 2026-06-12
+
+### Fixed
+
+- **React Native: `expo-file-system/legacy` is now imported with a string-literal specifier.** `loadExpoFileSystem` previously called `await import(...)` with a variable specifier, which Metro does not bundle (it only follows static string-literal `import()`/`require()`). The module was therefore omitted from the app bundle and the dynamic import failed at runtime, surfacing the misleading `require expo-file-system. Install it…` error even when `expo-file-system` was installed. The specifier is now inlined as the literal `'expo-file-system/legacy'`. Node/vitest behavior is unchanged. (`packages/sdk/src/react-native.ts`)
+- **Build: added an ambient module declaration for `expo-file-system/legacy`.** The literal import above broke the tsup `.d.ts` build with `TS2307` because the SDK does not depend on `expo-file-system`, so TypeScript could not resolve the optional peer's types. A shorthand ambient declaration restores the dts build; the call site already narrows with an `ExpoFileSystem` cast. Type-only — runtime behavior unchanged. (`packages/sdk/src/expo-file-system-legacy.d.ts`)
+
 ## [0.1.9] - 2026-06-10
 
 ### Changed
