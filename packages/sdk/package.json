@@ -1,6 +1,6 @@
 {
   "name": "@baerae/zkap-zkp",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "Compatibility facade for the zkap-zkp runtime SDK packages.",
   "main": "./dist/node.cjs",
   "module": "./dist/node.mjs",
@@ -71,9 +71,9 @@
     "access": "public"
   },
   "peerDependencies": {
-    "@baerae/zkap-zkp-node": "0.1.10",
-    "@baerae/zkap-zkp-react-native": "0.1.10",
-    "@baerae/zkap-zkp-wasm": "0.1.10",
+    "@baerae/zkap-zkp-node": "0.1.11",
+    "@baerae/zkap-zkp-react-native": "0.1.11",
+    "@baerae/zkap-zkp-wasm": "0.1.11",
     "expo-file-system": ">=17"
   },
   "peerDependenciesMeta": {
