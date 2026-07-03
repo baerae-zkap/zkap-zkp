@@ -403,6 +403,40 @@ pub fn generate_anchor(
 }
 
 // ---------------------------------------------------------------------------
+// derive_selector
+// ---------------------------------------------------------------------------
+
+/// Derive the k-of-n anchor slot selector (0/1 per slot) from `k` known
+/// secrets and the anchor evaluations (hex-or-decimal strings, e.g. from
+/// on-chain `getAnchor()`).
+///
+/// Membership check for shuffled anchors whose dummy-slot preimages were
+/// discarded at registration: succeeds iff the presented secrets — in their
+/// slot-ascending relative order — occupy some slot combination of the
+/// anchor. Errors with "No valid selector found" on mismatch.
+#[napi]
+pub fn derive_selector(
+    config: JsCircuitConfig,
+    secrets: Vec<JsSecret>,
+    anchor_evaluations: Vec<String>,
+) -> napi::Result<Vec<u32>> {
+    let params = js_config_to_native(config);
+    let secrets: Vec<AnchorSecret> = secrets
+        .into_iter()
+        .map(|s| AnchorSecret {
+            subject: s.sub,
+            issuer: s.iss,
+            audience: s.aud,
+        })
+        .collect();
+
+    let selector = zkap_service::derive_selector(&params, &secrets, &anchor_evaluations)
+        .map_err(|e| napi::Error::from_reason(e.to_string()))?;
+
+    Ok(selector.into_iter().map(u32::from).collect())
+}
+
+// ---------------------------------------------------------------------------
 // generate_aud_hash
 // ---------------------------------------------------------------------------
 
