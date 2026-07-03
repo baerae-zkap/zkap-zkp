@@ -89,9 +89,6 @@ pub struct LoadedRelease {
     pub ar1cs_blake3: String,
 }
 
-/// Shapes accepted by the loader. Anything else → [`ReleaseError::UnknownShape`].
-const SUPPORTED_SHAPES: &[&str] = &["1-of-1", "3-of-3"];
-
 /// Unprefixed artifact names listed in the per-shape `<shape>-SHA256SUMS`.
 /// These are sourced from `<release_dir>/<shape>-<name>` and staged as
 /// `<staged_dir>/<name>`.
@@ -111,10 +108,14 @@ const PER_SHAPE_ARTIFACTS: &[&str] = &[
 /// See the [module-level docs](self) for layout, cache-key, and
 /// concurrency semantics.
 ///
-/// `shape` must be one of [`"1-of-1"`, `"3-of-3"`]; anything else
-/// returns [`ReleaseError::UnknownShape`] before any filesystem access.
+/// The loader is **k-of-n-agnostic**: `shape` is a bundle selector, not a
+/// gated enum — any `<shape>-manifest.json` / `<shape>-SHA256SUMS` present in
+/// `release_dir` loads (n/k/limits come from the bundle's config.json). The
+/// only constraint is a `[A-Za-z0-9._-]` charset check that keeps `shape` from
+/// injecting path separators into the `<shape>-<artifact>` file names; an
+/// unknown-but-well-formed shape simply fails later as a missing artifact.
 pub fn load_release(release_dir: &Path, shape: &str) -> Result<LoadedRelease, ReleaseError> {
-    if !SUPPORTED_SHAPES.contains(&shape) {
+    if shape.is_empty() || !shape.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-')) {
         return Err(ReleaseError::UnknownShape(shape.to_string()));
     }
 
@@ -128,6 +129,20 @@ pub fn load_release(release_dir: &Path, shape: &str) -> Result<LoadedRelease, Re
         }
     })?;
     let expected_shas = parse_sha256sums(&sums_text)?;
+    // SUMS rows may be keyed by the unprefixed staging name or the
+    // `<shape>-<name>` form; strip the `<shape>-` prefix so both match the
+    // staging names verified below.
+    let shape_prefix = format!("{shape}-");
+    let expected_shas: HashMap<String, String> = expected_shas
+        .into_iter()
+        .map(|(name, sha)| {
+            let name = name
+                .strip_prefix(&shape_prefix)
+                .map(str::to_string)
+                .unwrap_or(name);
+            (name, sha)
+        })
+        .collect();
 
     let release_sha = {
         let mut hasher = Sha256::new();
@@ -483,6 +498,74 @@ mod tests {
         );
         fs::write(&sidecar_path, json).unwrap();
         (wasm_path, sidecar_path)
+    }
+
+    /// Write a minimal synthetic release: tiny `<shape>-<name>` artifacts
+    /// plus a per-shape SUMS whose rows are unprefixed staging names when
+    /// `prefixed_rows` is false, or `<shape>-<name>` when true.
+    fn write_release_fixture(dir: &Path, shape: &str, prefixed_rows: bool) {
+        let manifest = format!("{{\"ar1cs_blake3\":\"{BLAKE3_KNOWN}\"}}");
+        let artifacts: Vec<(&str, Vec<u8>)> = vec![
+            ("circuit.ar1cs", b"ar1cs".to_vec()),
+            ("pk.bin", b"pk".to_vec()),
+            ("vk.bin", b"vk".to_vec()),
+            ("pvk.bin", b"pvk".to_vec()),
+            ("Groth16Verifier.sol", b"sol".to_vec()),
+            ("config.json", b"{}".to_vec()),
+            ("manifest.json", manifest.into_bytes()),
+        ];
+        let mut sums = String::new();
+        for (name, bytes) in &artifacts {
+            fs::write(dir.join(format!("{shape}-{name}")), bytes).unwrap();
+            let row = if prefixed_rows {
+                format!("{shape}-{name}")
+            } else {
+                (*name).to_string()
+            };
+            sums.push_str(&format!("{}  {}\n", sha256_hex(bytes), row));
+        }
+        fs::write(dir.join(format!("{shape}-SHA256SUMS")), sums).unwrap();
+    }
+
+    #[test]
+    fn load_release_is_k_of_n_agnostic_arbitrary_shape_passes_gate() {
+        // A never-before-seen shape must NOT be rejected at a gate — it flows
+        // to file access and fails only as a missing artifact. k-of-n is a
+        // bundle selector, not an allowlist.
+        let dir = scratch_dir();
+        let err = load_release(&dir, "5-of-9").unwrap_err();
+        assert!(
+            matches!(err, ReleaseError::MissingArtifact(_)),
+            "arbitrary shape must reach FS, got {err:?}"
+        );
+    }
+
+    #[test]
+    fn load_release_rejects_shape_with_path_chars() {
+        let dir = scratch_dir();
+        for bad in ["../evil", "a/b", ""] {
+            assert!(
+                matches!(load_release(&dir, bad), Err(ReleaseError::UnknownShape(_))),
+                "shape {bad:?} must be rejected by the charset guard"
+            );
+        }
+    }
+
+    #[test]
+    fn load_release_accepts_prefixed_sums_rows() {
+        // Rows keyed by the `<shape>-<name>` form must still verify.
+        let dir = scratch_dir();
+        write_release_fixture(&dir, "3-of-6", true);
+        let loaded = load_release(&dir, "3-of-6").unwrap();
+        assert_eq!(loaded.ar1cs_blake3, BLAKE3_KNOWN);
+    }
+
+    #[test]
+    fn load_release_accepts_unprefixed_sums_rows() {
+        let dir = scratch_dir();
+        write_release_fixture(&dir, "3-of-3", false);
+        let loaded = load_release(&dir, "3-of-3").unwrap();
+        assert_eq!(loaded.ar1cs_blake3, BLAKE3_KNOWN);
     }
 
     #[test]

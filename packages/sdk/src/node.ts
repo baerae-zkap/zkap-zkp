@@ -25,6 +25,7 @@ import {
   listManifestArtifacts,
   makeAbortError,
   normalizeCircuitConfig,
+  normalizeSha256SumKeys,
   parseSha256Sums,
   releaseFileName,
   releaseFileUrl,
@@ -348,7 +349,7 @@ export async function downloadRelease(
   const sha256SumsText = await fetchText(sha256SumsUrl, fetchImpl, signal);
   const releaseSha = computeReleaseSha(sha256SumsText);
   assertReleaseSha(releaseSha, opts.expectedReleaseSha);
-  const sha256Sums = parseSha256Sums(sha256SumsText);
+  const sha256Sums = normalizeSha256SumKeys(parseSha256Sums(sha256SumsText), shape);
 
   const cacheRoot = opts.cacheDir ?? tmpdir();
   const stagedDir = join(cacheRoot, `zkap-release-${releaseSha}-${shape}`);

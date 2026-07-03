@@ -47,6 +47,17 @@ export interface JsAnchorResult {
  * Returns the anchor polynomial evaluations as hex strings.
  */
 export declare function generateAnchor(config: JsCircuitConfig, secrets: Array<JsSecret>): JsAnchorResult
+/**
+ * Derive the k-of-n anchor slot selector (0/1 per slot) from `k` known
+ * secrets and the anchor evaluations (hex-or-decimal strings, e.g. from
+ * on-chain `getAnchor()`).
+ *
+ * Membership check for shuffled anchors whose dummy-slot preimages were
+ * discarded at registration: succeeds iff the presented secrets — in their
+ * slot-ascending relative order — occupy some slot combination of the
+ * anchor. Errors with "No valid selector found" on mismatch.
+ */
+export declare function deriveSelector(config: JsCircuitConfig, secrets: Array<JsSecret>, anchorEvaluations: Array<string>): Array<number>
 /** Result of `generate_aud_hash`. */
 export interface JsAudHashResult {
   /** Per-audience Poseidon hashes, one per slot (including padding), as hex strings. */

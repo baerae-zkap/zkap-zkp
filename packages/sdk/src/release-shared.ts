@@ -182,6 +182,22 @@ export function parseSha256Sums(text: string): Map<string, string> {
   return result;
 }
 
+/**
+ * Strip the `<shape>-` prefix from SUMS row names so they match the
+ * unprefixed staging names the loaders verify against.
+ */
+export function normalizeSha256SumKeys(
+  sums: Map<string, string>,
+  shape: string,
+): Map<string, string> {
+  const prefix = `${shape}-`;
+  const out = new Map<string, string>();
+  for (const [name, sha] of sums) {
+    out.set(name.startsWith(prefix) ? name.slice(prefix.length) : name, sha);
+  }
+  return out;
+}
+
 export function releaseFileName(shape: string, artifactName: string): string {
   return `${shape}-${artifactName}`;
 }

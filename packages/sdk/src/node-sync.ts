@@ -44,6 +44,7 @@ export type {
 } from './types';
 
 export {
+  deriveSelector,
   generateAnchor,
   generateAudHash,
   generateHash,
