@@ -48,8 +48,10 @@ pub enum ReleaseError {
     #[error("release manifest malformed: {0}")]
     MalformedManifest(String),
 
-    /// Shape was not one of the supported values (`1-of-1`, `3-of-3`).
-    #[error("unknown release shape: {0}")]
+    /// Shape string contained characters outside `[A-Za-z0-9._-]` (the loader
+    /// is k-of-n-agnostic — any well-formed shape is accepted; this guards
+    /// only against path-injection in the `<shape>-<artifact>` file names).
+    #[error("invalid release shape: {0}")]
     UnknownShape(String),
 
     /// `fs2::FileExt::lock_exclusive` on the staged-dir sibling lockfile

@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   buildArtifactProgress,
   makeAbortError,
+  normalizeSha256SumKeys,
+  parseSha256Sums,
   sumManifestBytes,
   throwIfAborted,
 } from '../src/release-shared';
@@ -77,5 +79,28 @@ describe('abort helpers', () => {
     expect(() => throwIfAborted(undefined)).not.toThrow();
     controller.abort();
     expect(() => throwIfAborted(controller.signal)).toThrowError(/aborted/);
+  });
+});
+
+describe('normalizeSha256SumKeys', () => {
+  const A = 'a'.repeat(64);
+  const B = 'b'.repeat(64);
+
+  it('strips the `<shape>-` prefix from prefixed row names', () => {
+    const sums = parseSha256Sums(`${A}  3-of-6-manifest.json\n${B}  3-of-6-pk.bin\n`);
+    const normalized = normalizeSha256SumKeys(sums, '3-of-6');
+    expect(normalized.get('manifest.json')).toBe(A);
+    expect(normalized.get('pk.bin')).toBe(B);
+    expect(normalized.size).toBe(2);
+  });
+
+  it('passes unprefixed names through unchanged', () => {
+    const sums = parseSha256Sums(`${A}  manifest.json\n`);
+    expect(normalizeSha256SumKeys(sums, '3-of-6').get('manifest.json')).toBe(A);
+  });
+
+  it('does not strip a different shape prefix', () => {
+    const sums = parseSha256Sums(`${A}  1-of-1-manifest.json\n`);
+    expect(normalizeSha256SumKeys(sums, '3-of-6').get('1-of-1-manifest.json')).toBe(A);
   });
 });
