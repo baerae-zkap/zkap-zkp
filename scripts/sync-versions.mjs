@@ -35,6 +35,8 @@ const PLATFORM_PACKAGES = [
   'platform-packages/node-darwin-arm64',
   'platform-packages/node-linux-x64-gnu',
   'platform-packages/node-linux-x64-musl',
+  'platform-packages/node-linux-arm64-gnu',
+  'platform-packages/node-linux-arm64-musl',
 ];
 
 function updatePackageJson(relPath, updater) {

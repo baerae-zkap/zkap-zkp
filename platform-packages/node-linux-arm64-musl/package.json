@@ -1,0 +1,31 @@
+{
+  "name": "@baerae/zkap-zkp-node-linux-arm64-musl",
+  "version": "0.1.11",
+  "description": "Linux arm64 (musl) binary for @baerae/zkap-zkp-node",
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "libc": [
+    "musl"
+  ],
+  "main": "index.linux-arm64-musl.node",
+  "files": [
+    "index.linux-arm64-musl.node"
+  ],
+  "scripts": {
+    "prepack": "node ../../scripts/verify-node-platform-packages.mjs"
+  },
+  "license": "MIT OR Apache-2.0",
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/baerae-zkap/zkap-zkp-sdk.git",
+    "directory": "platform-packages/node-linux-arm64-musl"
+  }
+}

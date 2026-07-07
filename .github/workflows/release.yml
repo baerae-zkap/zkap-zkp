@@ -59,6 +59,16 @@ jobs:
             binary_name: index.linux-x64-musl.node
             artifact_name: binary-x86_64-unknown-linux-musl
             zigbuild: true
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-24.04-arm
+            binary_name: index.linux-arm64-gnu.node
+            artifact_name: binary-aarch64-unknown-linux-gnu
+            zigbuild: false
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-24.04-arm
+            binary_name: index.linux-arm64-musl.node
+            artifact_name: binary-aarch64-unknown-linux-musl
+            zigbuild: true
 
     runs-on: ${{ matrix.os }}
     name: Build ${{ matrix.target }}
@@ -114,11 +124,11 @@ jobs:
           run: |
             apk add --no-cache gcc g++ musl-dev linux-headers cmake
             rustup update stable
-            unset CC_x86_64_unknown_linux_musl
-            unset CXX_x86_64_unknown_linux_musl
-            cargo build --release --target x86_64-unknown-linux-musl -p zkap-zkp-node
-            cp target/x86_64-unknown-linux-musl/release/libzkap_zkp_node.so \
-              packages/sdk-node/index.linux-x64-musl.node
+            unset CC_x86_64_unknown_linux_musl CXX_x86_64_unknown_linux_musl
+            unset CC_aarch64_unknown_linux_musl CXX_aarch64_unknown_linux_musl
+            cargo build --release --target ${{ matrix.target }} -p zkap-zkp-node
+            cp target/${{ matrix.target }}/release/libzkap_zkp_node.so \
+              packages/sdk-node/${{ matrix.binary_name }}
 
       - name: Verify musl artifact
         if: ${{ matrix.zigbuild }}
@@ -354,6 +364,22 @@ jobs:
           run-id: ${{ inputs.reuse_artifacts_from_run_id || github.run_id }}
           github-token: ${{ github.token }}
 
+      - name: Download linux-arm64-gnu binary
+        uses: actions/download-artifact@v4
+        with:
+          name: binary-aarch64-unknown-linux-gnu
+          path: platform-packages/node-linux-arm64-gnu
+          run-id: ${{ inputs.reuse_artifacts_from_run_id || github.run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Download linux-arm64-musl binary
+        uses: actions/download-artifact@v4
+        with:
+          name: binary-aarch64-unknown-linux-musl
+          path: platform-packages/node-linux-arm64-musl
+          run-id: ${{ inputs.reuse_artifacts_from_run_id || github.run_id }}
+          github-token: ${{ github.token }}
+
       - name: Copy Linux binaries into sdk-node for validation and packing
         run: |
           cp platform-packages/node-linux-x64-gnu/*.node packages/sdk-node/
@@ -421,6 +447,8 @@ jobs:
           npm publish ./platform-packages/node-darwin-arm64 --dry-run --access public
           npm publish ./platform-packages/node-linux-x64-gnu --dry-run --access public
           npm publish ./platform-packages/node-linux-x64-musl --dry-run --access public
+          npm publish ./platform-packages/node-linux-arm64-gnu --dry-run --access public
+          npm publish ./platform-packages/node-linux-arm64-musl --dry-run --access public
           npm publish ./packages/sdk-node --dry-run --access public
           npm publish ./packages/sdk-wasm --dry-run --access public
           npm publish ./packages/sdk-react-native --dry-run --access public
@@ -438,6 +466,8 @@ jobs:
           npm publish ./platform-packages/node-darwin-arm64 --access public --tag latest --provenance
           npm publish ./platform-packages/node-linux-x64-gnu --access public --tag latest --provenance
           npm publish ./platform-packages/node-linux-x64-musl --access public --tag latest --provenance
+          npm publish ./platform-packages/node-linux-arm64-gnu --access public --tag latest --provenance
+          npm publish ./platform-packages/node-linux-arm64-musl --access public --tag latest --provenance
           npm publish ./packages/sdk-node --access public --tag latest --provenance
           npm publish ./packages/sdk-wasm --access public --tag latest --provenance
           npm publish ./packages/sdk-react-native --access public --tag latest --provenance

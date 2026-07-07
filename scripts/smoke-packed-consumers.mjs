@@ -52,6 +52,22 @@ const PLATFORM_PACKAGES = [
     cpu: 'x64',
     libc: 'musl',
   },
+  {
+    dir: 'platform-packages/node-linux-arm64-gnu',
+    name: '@baerae/zkap-zkp-node-linux-arm64-gnu',
+    binary: 'index.linux-arm64-gnu.node',
+    os: 'linux',
+    cpu: 'arm64',
+    libc: 'glibc',
+  },
+  {
+    dir: 'platform-packages/node-linux-arm64-musl',
+    name: '@baerae/zkap-zkp-node-linux-arm64-musl',
+    binary: 'index.linux-arm64-musl.node',
+    os: 'linux',
+    cpu: 'arm64',
+    libc: 'musl',
+  },
 ]
 
 function npmEnv() {
@@ -185,6 +201,13 @@ function expectedRuntimePlatformPackage() {
       isMuslRuntime()
         ? pkg.name === '@baerae/zkap-zkp-node-linux-x64-musl'
         : pkg.name === '@baerae/zkap-zkp-node-linux-x64-gnu',
+    )
+  }
+  if (process.platform === 'linux' && process.arch === 'arm64') {
+    return PLATFORM_PACKAGES.find((pkg) =>
+      isMuslRuntime()
+        ? pkg.name === '@baerae/zkap-zkp-node-linux-arm64-musl'
+        : pkg.name === '@baerae/zkap-zkp-node-linux-arm64-gnu',
     )
   }
   return undefined

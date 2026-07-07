@@ -13,6 +13,8 @@ const RELEASE_PACKAGE_PATHS = [
   'platform-packages/node-darwin-arm64/package.json',
   'platform-packages/node-linux-x64-gnu/package.json',
   'platform-packages/node-linux-x64-musl/package.json',
+  'platform-packages/node-linux-arm64-gnu/package.json',
+  'platform-packages/node-linux-arm64-musl/package.json',
   'packages/sdk-node/package.json',
   'packages/sdk-wasm/package.json',
   'packages/sdk-react-native/package.json',

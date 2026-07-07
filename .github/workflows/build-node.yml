@@ -28,6 +28,14 @@ jobs:
             os: ubuntu-latest
             zigbuild: true
             binary_name: index.linux-x64-musl.node
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-24.04-arm
+            zigbuild: false
+            binary_name: index.linux-arm64-gnu.node
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-24.04-arm
+            zigbuild: true
+            binary_name: index.linux-arm64-musl.node
 
     runs-on: ${{ matrix.os }}
     name: Build ${{ matrix.target }}
@@ -82,10 +90,10 @@ jobs:
           run: |
             apk add --no-cache gcc g++ musl-dev linux-headers cmake
             rustup update stable
-            unset CC_x86_64_unknown_linux_musl
-            unset CXX_x86_64_unknown_linux_musl
-            cargo build --release --target x86_64-unknown-linux-musl -p zkap-zkp-node
-            cp target/x86_64-unknown-linux-musl/release/libzkap_zkp_node.so packages/sdk-node/index.linux-x64-musl.node
+            unset CC_x86_64_unknown_linux_musl CXX_x86_64_unknown_linux_musl
+            unset CC_aarch64_unknown_linux_musl CXX_aarch64_unknown_linux_musl
+            cargo build --release --target ${{ matrix.target }} -p zkap-zkp-node
+            cp target/${{ matrix.target }}/release/libzkap_zkp_node.so packages/sdk-node/${{ matrix.binary_name }}
 
       - name: Verify musl artifact
         if: matrix.zigbuild
