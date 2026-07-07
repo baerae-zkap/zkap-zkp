@@ -462,13 +462,25 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ''
         run: |
-          npm publish ./platform-packages/node-darwin-x64 --access public --tag latest --provenance
-          npm publish ./platform-packages/node-darwin-arm64 --access public --tag latest --provenance
-          npm publish ./platform-packages/node-linux-x64-gnu --access public --tag latest --provenance
-          npm publish ./platform-packages/node-linux-x64-musl --access public --tag latest --provenance
-          npm publish ./platform-packages/node-linux-arm64-gnu --access public --tag latest --provenance
-          npm publish ./platform-packages/node-linux-arm64-musl --access public --tag latest --provenance
-          npm publish ./packages/sdk-node --access public --tag latest --provenance
-          npm publish ./packages/sdk-wasm --access public --tag latest --provenance
-          npm publish ./packages/sdk-react-native --access public --tag latest --provenance
-          npm publish ./packages/sdk --access public --tag latest --provenance
+          # Idempotent: skip any package whose exact version is already on npm,
+          # so a partially-failed release (e.g. after bootstrapping a new
+          # package's first publish) can be re-run to completion without a 403.
+          for dir in \
+            platform-packages/node-darwin-x64 \
+            platform-packages/node-darwin-arm64 \
+            platform-packages/node-linux-x64-gnu \
+            platform-packages/node-linux-x64-musl \
+            platform-packages/node-linux-arm64-gnu \
+            platform-packages/node-linux-arm64-musl \
+            packages/sdk-node \
+            packages/sdk-wasm \
+            packages/sdk-react-native \
+            packages/sdk ; do
+            read name version <<<"$(node -p "const p = require('./$dir/package.json'); p.name + ' ' + p.version")"
+            if [ -n "$(npm view "$name@$version" version 2>/dev/null || true)" ]; then
+              echo "→ skip $name@$version (already on npm)"
+            else
+              echo "→ publish $name@$version"
+              npm publish "./$dir" --access public --provenance
+            fi
+          done
