@@ -26,6 +26,14 @@ const RELEASE_PACKAGES = [
     name: '@baerae/zkap-zkp-node-linux-x64-musl',
   },
   {
+    path: 'platform-packages/node-linux-arm64-gnu/package.json',
+    name: '@baerae/zkap-zkp-node-linux-arm64-gnu',
+  },
+  {
+    path: 'platform-packages/node-linux-arm64-musl/package.json',
+    name: '@baerae/zkap-zkp-node-linux-arm64-musl',
+  },
+  {
     path: 'packages/sdk-node/package.json',
     name: '@baerae/zkap-zkp-node',
   },
@@ -150,6 +158,8 @@ const platformTargets = new Set([
   'aarch64-apple-darwin',
   'x86_64-unknown-linux-gnu',
   'x86_64-unknown-linux-musl',
+  'aarch64-unknown-linux-gnu',
+  'aarch64-unknown-linux-musl',
 ])
 
 for (const depPkg of [sdkNodePkg, sdkWasmPkg, sdkReactNativePkg]) {

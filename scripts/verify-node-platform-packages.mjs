@@ -13,6 +13,8 @@ const PACKAGES = [
   ['node-darwin-arm64', '@baerae/zkap-zkp-node-darwin-arm64', 'index.darwin-arm64.node'],
   ['node-linux-x64-gnu', '@baerae/zkap-zkp-node-linux-x64-gnu', 'index.linux-x64-gnu.node'],
   ['node-linux-x64-musl', '@baerae/zkap-zkp-node-linux-x64-musl', 'index.linux-x64-musl.node'],
+  ['node-linux-arm64-gnu', '@baerae/zkap-zkp-node-linux-arm64-gnu', 'index.linux-arm64-gnu.node'],
+  ['node-linux-arm64-musl', '@baerae/zkap-zkp-node-linux-arm64-musl', 'index.linux-arm64-musl.node'],
 ]
 
 const cwd = resolve(process.cwd())
