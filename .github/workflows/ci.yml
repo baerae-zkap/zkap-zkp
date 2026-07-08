@@ -15,3 +15,14 @@ jobs:
         run: cargo check --workspace
       - name: cargo clippy
         run: cargo clippy --workspace -- -D warnings
+
+  lockfile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+      # npm ci from the committed lock; catches a stale/unusable lock before release.
+      - name: Validate package-lock.json (npm ci)
+        run: npm ci --ignore-scripts
