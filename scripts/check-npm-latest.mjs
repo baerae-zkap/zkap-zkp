@@ -103,9 +103,16 @@ for (const packagePath of RELEASE_PACKAGE_PATHS) {
     continue
   }
 
-  if (compareSemver(version, latest) <= 0) {
-    console.error(`${pkg.name}: target version ${version} is not newer than latest ${latest}`)
+  const cmp = compareSemver(version, latest)
+  if (cmp < 0) {
+    console.error(`${pkg.name}: target version ${version} is older than latest ${latest} (downgrade)`)
     process.exit(1)
+  }
+  if (cmp === 0) {
+    // Already published at the target version — the idempotent publish step
+    // will skip it. Tolerated so a partially-published release can be re-run.
+    console.log(`${pkg.name}: ${version} already published — will be skipped by idempotent publish`)
+    continue
   }
 
   console.log(`${pkg.name}: ${version} > ${latest}`)
