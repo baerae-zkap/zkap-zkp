@@ -10,6 +10,7 @@
  *   node scripts/sync-versions.mjs 0.2.0
  */
 
+import { execFileSync } from 'child_process';
 import { readFileSync, writeFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -89,5 +90,22 @@ updatePackageJson('packages/sdk-wasm', (pkg) => {
 updatePackageJson('packages/sdk-react-native', (pkg) => {
   pkg.version = version;
 });
+
+// 6. Reconcile package-lock.json so it never drifts from the bumped versions.
+console.log('\nUpdating package-lock.json...');
+execFileSync('npm', ['install', '--package-lock-only'], { cwd: root, stdio: 'inherit' });
+
+// Guard: every registry (non-link) entry must keep resolved+integrity, else the
+// lockfile is incomplete and `npm ci` may fail. Abort rather than commit it.
+const lock = JSON.parse(readFileSync(resolve(root, 'package-lock.json'), 'utf8'));
+const missing = Object.entries(lock.packages ?? {}).filter(
+  ([name, entry]) => name.startsWith('node_modules/') && !entry.link && !entry.integrity,
+);
+if (missing.length > 0) {
+  console.error(`\npackage-lock.json is missing integrity for ${missing.length} entries — aborting.`);
+  console.error('Regenerate cleanly (rm -rf node_modules package-lock.json && npm install --ignore-scripts) and retry.');
+  process.exit(1);
+}
+console.log(`  package-lock.json updated (${Object.keys(lock.packages ?? {}).length} entries, integrity OK)`);
 
 console.log('\nDone.\n');

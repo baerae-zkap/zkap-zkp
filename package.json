@@ -15,5 +15,8 @@
     "check:release-packages": "node scripts/check-release-packages.mjs && node scripts/check-rn-native-artifacts.mjs",
     "check:npm-latest": "node scripts/check-npm-latest.mjs",
     "smoke:packed-consumers": "node scripts/smoke-packed-consumers.mjs"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }
