@@ -455,7 +455,7 @@ jobs:
           npm publish ./packages/sdk --dry-run --access public
 
       - name: Upgrade npm for trusted publishing
-        run: npm install -g npm@latest
+        run: npm install -g npm@11
 
       - name: Publish to npm
         if: ${{ github.event_name != 'workflow_dispatch' || !inputs.dry_run_only }}
