@@ -5,6 +5,7 @@ export * from './errors';
 export * from './types';
 
 export {
+  deriveSelector,
   generateAnchor,
   generateAudHash,
   generateHash,

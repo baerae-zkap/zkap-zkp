@@ -1,4 +1,5 @@
 import initWasm, {
+  deriveSelector as wasmDeriveSelector,
   generateAnchor as wasmGenerateAnchor,
   generateAudHash as wasmGenerateAudHash,
   generateHash as wasmGenerateHash,
@@ -55,6 +56,15 @@ export async function generateAnchor(
 ): Promise<AnchorResult> {
   await ensureWasmInitialized();
   return wasmGenerateAnchor(config, secrets);
+}
+
+export async function deriveSelector(
+  config: CircuitConfig,
+  secrets: Secret[],
+  anchorEvaluations: string[],
+): Promise<number[]> {
+  await ensureWasmInitialized();
+  return wasmDeriveSelector(config, secrets, anchorEvaluations);
 }
 
 export async function generateAudHash(

@@ -1,4 +1,5 @@
 import {
+  deriveSelector as nativeDeriveSelector,
   generateAnchor as nativeGenerateAnchor,
   generateAudHash as nativeGenerateAudHash,
   generateHash as nativeGenerateHash,
@@ -76,6 +77,14 @@ export async function generateAnchor(
   secrets: Secret[],
 ): Promise<AnchorResult> {
   return nativeGenerateAnchor(config, secrets);
+}
+
+export async function deriveSelector(
+  config: CircuitConfig,
+  secrets: Secret[],
+  anchorEvaluations: string[],
+): Promise<number[]> {
+  return nativeDeriveSelector(config, secrets, anchorEvaluations);
 }
 
 export async function generateAudHash(

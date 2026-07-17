@@ -324,11 +324,25 @@ fn generate_leaf_hash_rejects_null_config() {
 // Unsupported proof functions — must return Err, never panic
 // ---------------------------------------------------------------------------
 
+/// Thrown values are `Error` instances (0.1.13+): read `message`/`code`
+/// properties instead of expecting a raw string.
+fn err_message_and_code(err: &JsValue) -> (String, String) {
+    let message = Reflect::get(err, &JsValue::from_str("message"))
+        .ok()
+        .and_then(|v| v.as_string())
+        .unwrap_or_default();
+    let code = Reflect::get(err, &JsValue::from_str("code"))
+        .ok()
+        .and_then(|v| v.as_string())
+        .unwrap_or_default();
+    (message, code)
+}
+
 #[wasm_bindgen_test]
 fn groth16_setup_returns_unsupported_error() {
     let result = zkap_zkp_wasm::groth16_setup();
     assert!(result.is_err());
-    let msg = result.unwrap_err().as_string().unwrap_or_default();
+    let (msg, code) = err_message_and_code(&result.unwrap_err());
     assert!(
         msg.contains("groth16Setup"),
         "Error should mention function name, got: {msg}"
@@ -337,13 +351,14 @@ fn groth16_setup_returns_unsupported_error() {
         msg.contains("not supported"),
         "Error should say 'not supported', got: {msg}"
     );
+    assert_eq!(code, "UNSUPPORTED_PLATFORM");
 }
 
 #[wasm_bindgen_test]
 fn prove_returns_unsupported_error() {
     let result = zkap_zkp_wasm::prove();
     assert!(result.is_err());
-    let msg = result.unwrap_err().as_string().unwrap_or_default();
+    let (msg, code) = err_message_and_code(&result.unwrap_err());
     assert!(
         msg.contains("prove"),
         "Error should mention function name, got: {msg}"
@@ -352,13 +367,14 @@ fn prove_returns_unsupported_error() {
         msg.contains("not supported"),
         "Error should say 'not supported', got: {msg}"
     );
+    assert_eq!(code, "UNSUPPORTED_PLATFORM");
 }
 
 #[wasm_bindgen_test]
 fn verify_returns_unsupported_error() {
     let result = zkap_zkp_wasm::verify();
     assert!(result.is_err());
-    let msg = result.unwrap_err().as_string().unwrap_or_default();
+    let (msg, code) = err_message_and_code(&result.unwrap_err());
     assert!(
         msg.contains("verify"),
         "Error should mention function name, got: {msg}"
@@ -367,4 +383,5 @@ fn verify_returns_unsupported_error() {
         msg.contains("not supported"),
         "Error should say 'not supported', got: {msg}"
     );
+    assert_eq!(code, "UNSUPPORTED_PLATFORM");
 }

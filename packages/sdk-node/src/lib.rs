@@ -28,6 +28,74 @@ struct CachedWitnessModule {
     module: wasmtime::Module,
 }
 
+/// Stable machine-readable error code carried to JS as `error.code`.
+///
+/// `GenericFailure` preserves the pre-0.1.13 default napi code for errors
+/// that don't classify. Mirrors `error_code` in packages/sdk-wasm/src/lib.rs
+/// — keep the two in sync (locked by the shared golden tests in
+/// golden/anchor-vectors.json).
+pub enum ZkpErrorCode {
+    NoValidSelector,
+    DimensionMismatch,
+    InvalidInput,
+    GenericFailure,
+}
+
+impl AsRef<str> for ZkpErrorCode {
+    fn as_ref(&self) -> &str {
+        match self {
+            ZkpErrorCode::NoValidSelector => "NO_VALID_SELECTOR",
+            ZkpErrorCode::DimensionMismatch => "DIMENSION_MISMATCH",
+            ZkpErrorCode::InvalidInput => "INVALID_INPUT",
+            ZkpErrorCode::GenericFailure => "GenericFailure",
+        }
+    }
+}
+
+fn classify(e: &zkap_service::error::ApplicationError) -> ZkpErrorCode {
+    use zkap_service::error::ApplicationError as E;
+    match e {
+        E::AnchorDimensionMismatch { .. } => ZkpErrorCode::DimensionMismatch,
+        E::InvalidFormat(m) if m.contains("No valid selector") => ZkpErrorCode::NoValidSelector,
+        E::InvalidFormat(m) if m.starts_with("Dimension mismatch") => {
+            ZkpErrorCode::DimensionMismatch
+        }
+        E::InvalidFormat(_)
+        | E::InvalidFieldElement { .. }
+        | E::AudienceLimitExceeded { .. }
+        | E::InvalidClaimValue { .. }
+        | E::InvalidBase64(_)
+        | E::InvalidRsaModulus(_)
+        | E::FieldParsingError(_)
+        | E::TextEncodingError(_)
+        | E::ParseError(_) => ZkpErrorCode::InvalidInput,
+        _ => ZkpErrorCode::GenericFailure,
+    }
+}
+
+/// Map a zkap-service error to a coded napi error. Message strings are
+/// unchanged from the pre-0.1.13 `from_reason` mapping — only `code` is new.
+fn app_err(e: zkap_service::error::ApplicationError) -> napi::Error<ZkpErrorCode> {
+    napi::Error::new(classify(&e), e.to_string())
+}
+
+/// Classify a plain string error (e.g. from the witness_gen.wasm error
+/// buffer, whose "no valid selector" report is the prover-side counterpart
+/// of `derive_selector`'s exhausted search).
+fn message_err(msg: String) -> napi::Error<ZkpErrorCode> {
+    let code = if msg.to_ascii_lowercase().contains("no valid selector") {
+        ZkpErrorCode::NoValidSelector
+    } else {
+        ZkpErrorCode::GenericFailure
+    };
+    napi::Error::new(code, msg)
+}
+
+/// Re-code an internal default-status napi error without touching its message.
+fn generic_err(e: napi::Error) -> napi::Error<ZkpErrorCode> {
+    napi::Error::new(ZkpErrorCode::GenericFailure, e.reason)
+}
+
 /// JS-friendly representation of a JWT credential triple.
 #[napi(object)]
 pub struct JsSecret {
@@ -357,11 +425,11 @@ fn js_proof_request_to_native(request: JsProofRequest) -> ProveRequest {
 ///
 /// Returns the result as a 0x-prefixed hex string.
 #[napi]
-pub fn generate_hash(messages: Vec<String>) -> napi::Result<String> {
+pub fn generate_hash(messages: Vec<String>) -> napi::Result<String, ZkpErrorCode> {
     let response = generate_poseidon_hash(HashRequest {
         field_elements: messages,
     })
-    .map_err(|e| napi::Error::from_reason(e.to_string()))?;
+    .map_err(app_err)?;
     Ok(response.hash)
 }
 
@@ -383,7 +451,7 @@ pub struct JsAnchorResult {
 pub fn generate_anchor(
     config: JsCircuitConfig,
     secrets: Vec<JsSecret>,
-) -> napi::Result<JsAnchorResult> {
+) -> napi::Result<JsAnchorResult, ZkpErrorCode> {
     let params = js_config_to_native(config);
     let secrets: Vec<AnchorSecret> = secrets
         .into_iter()
@@ -395,7 +463,7 @@ pub fn generate_anchor(
         .collect();
 
     let anchor = service_generate_anchor(&params, GenerateAnchorRequest { secrets })
-        .map_err(|e| napi::Error::from_reason(e.to_string()))?;
+        .map_err(app_err)?;
 
     Ok(JsAnchorResult {
         evaluations: anchor.anchor_evaluations,
@@ -419,8 +487,24 @@ pub fn derive_selector(
     config: JsCircuitConfig,
     secrets: Vec<JsSecret>,
     anchor_evaluations: Vec<String>,
-) -> napi::Result<Vec<u32>> {
+) -> napi::Result<Vec<u32>, ZkpErrorCode> {
     let params = js_config_to_native(config);
+
+    // The rust core reports a wrong-length anchor as an exhausted selector
+    // search ("No valid selector found"), which would mis-classify the error
+    // — reject the dimension violation up front. Keep this message in sync
+    // with packages/sdk-wasm/src/lib.rs.
+    let expected_evals = (params.n - params.k + 1) as usize;
+    if anchor_evaluations.len() != expected_evals {
+        return Err(napi::Error::new(
+            ZkpErrorCode::DimensionMismatch,
+            format!(
+                "Dimension mismatch: anchor_evaluations length must be n - k + 1 = {expected_evals}, got {}",
+                anchor_evaluations.len()
+            ),
+        ));
+    }
+
     let secrets: Vec<AnchorSecret> = secrets
         .into_iter()
         .map(|s| AnchorSecret {
@@ -431,7 +515,7 @@ pub fn derive_selector(
         .collect();
 
     let selector = zkap_service::derive_selector(&params, &secrets, &anchor_evaluations)
-        .map_err(|e| napi::Error::from_reason(e.to_string()))?;
+        .map_err(app_err)?;
 
     Ok(selector.into_iter().map(u32::from).collect())
 }
@@ -454,7 +538,7 @@ pub struct JsAudHashResult {
 pub fn generate_aud_hash(
     config: JsCircuitConfig,
     aud_list: Vec<String>,
-) -> napi::Result<JsAudHashResult> {
+) -> napi::Result<JsAudHashResult, ZkpErrorCode> {
     let params = js_config_to_native(config);
     let result = generate_audience_hashes(
         &params,
@@ -462,7 +546,7 @@ pub fn generate_aud_hash(
             audiences: aud_list,
         },
     )
-    .map_err(|e| napi::Error::from_reason(e.to_string()))?;
+    .map_err(app_err)?;
 
     Ok(JsAudHashResult {
         aud_hashes: result.audience_hashes,
@@ -482,7 +566,7 @@ pub fn generate_leaf_hash(
     config: JsCircuitConfig,
     iss: String,
     pk_b64: String,
-) -> napi::Result<String> {
+) -> napi::Result<String, ZkpErrorCode> {
     let params = js_config_to_native(config);
     let response = generate_issuer_key_hash(
         &params,
@@ -491,7 +575,7 @@ pub fn generate_leaf_hash(
             rsa_modulus_b64: pk_b64,
         },
     )
-    .map_err(|e| napi::Error::from_reason(e.to_string()))?;
+    .map_err(app_err)?;
     Ok(response.hash)
 }
 
@@ -719,20 +803,24 @@ fn proof_output_from_response(result: ProveResponse, timing: JsProveTiming) -> J
 /// the bundled proving key and prepared matrices and assembles the
 /// canonical `ProveResponse`.
 #[napi]
-pub fn prove(_config: JsCircuitConfig, request: JsProofRequest) -> napi::Result<JsProofOutput> {
+pub fn prove(
+    _config: JsCircuitConfig,
+    request: JsProofRequest,
+) -> napi::Result<JsProofOutput, ZkpErrorCode> {
     let total_start = Instant::now();
     let dir = Path::new(&request.manifest_dir);
     let (prepared, load_ms, _cached, _load_timing) = get_or_load_prepared_artifacts(
         dir,
         Path::new(&request.witness_gen_path),
         Path::new(&request.witness_gen_sidecar_path),
-    )?;
+    )
+    .map_err(generic_err)?;
 
     let prove_request = js_proof_request_to_native(request);
 
     let synth_start = Instant::now();
     let output = synthesize_via_wasm(&prepared.witness_gen_wasm, &prove_request, &prepared.cfg)
-        .map_err(napi::Error::from_reason)?;
+        .map_err(message_err)?;
     let (bundles, backend, wasm_timing) = (output.bundles, "wasm", Some(output.timing));
     let synthesize_ms = elapsed_ms(synth_start);
 
@@ -749,7 +837,7 @@ pub fn prove(_config: JsCircuitConfig, request: JsProofRequest) -> napi::Result<
         prove_bundles(&prepared.artifact_set, bundles, PreflightMode::VerifyAfter)
     });
     let result: ProveResponse =
-        result.map_err(|e| napi::Error::from_reason(format!("prove_bundles: {e}")))?;
+        result.map_err(|e| napi::Error::new(classify(&e), format!("prove_bundles: {e}")))?;
 
     let total_ms = elapsed_ms(total_start);
     Ok(proof_output_from_response(

@@ -89,6 +89,18 @@ export async function generateAnchor(
   return rnGenerateAnchor(toReactNativeConfig(config), secrets);
 }
 
+export async function deriveSelector(
+  _config: CircuitConfig,
+  _secrets: Secret[],
+  _anchorEvaluations: string[],
+): Promise<number[]> {
+  throw new UnsupportedPlatformError(
+    'deriveSelector',
+    'react-native',
+    '[zkap-zkp] deriveSelector is not exposed by the react-native native module yet. Use the node or wasm runtime.',
+  );
+}
+
 export async function generateAudHash(
   config: CircuitConfig,
   audList: string[],
