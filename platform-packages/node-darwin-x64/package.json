@@ -1,6 +1,6 @@
 {
   "name": "@baerae/zkap-zkp-node-darwin-x64",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "description": "macOS x64 binary for @baerae/zkap-zkp-node",
   "os": [
     "darwin"

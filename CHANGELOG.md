@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.1.13] - 2026-07-17
+
+### Added
+
+- **`deriveSelector` is now available in the browser wasm runtime** (`@baerae/zkap-zkp-wasm`), mirroring the Node NAPI binding added in 0.1.11: `deriveSelector(config, secrets, anchorEvaluations): number[]` returns the k-of-n slot selector (0/1 per slot) iff the presented raw secrets — in slot-ascending relative order — occupy some slot combination of the anchor. This enables client-side membership pre-checks against shuffled 3-of-6 anchors whose dummy preimages were discarded at registration. The facade re-exports it on `node`, `node-sync`, and `wasm` conditions; `react-native` throws `UnsupportedPlatformError` (native module does not expose it yet).
+- **Machine-readable `error.code` on thrown errors** across `generateHash` / `generateAnchor` / `deriveSelector` / `generateAudHash` / `generateLeafHash` / `prove` in BOTH node and wasm runtimes: `NO_VALID_SELECTOR` (exhausted selector search — the anchor/JWT-set mismatch signal), `DIMENSION_MISMATCH` (secrets ≠ k / n, anchor evaluations ≠ n−k+1), `INVALID_INPUT` (field/claim parse failures, length violations). Unclassified errors keep the previous `GenericFailure` code. **Message strings are unchanged** — existing consumers matching the stable message text ("No valid selector found") keep working; `code` is additive. `prove()` classifies the witness-gen "no valid selector" report the same way, so proof workers can branch on `code` instead of message text.
+- **`deriveSelector` rejects a wrong-length `anchorEvaluations` up front** with `DIMENSION_MISMATCH` in both runtimes. The rust core reports that case as an exhausted search ("No valid selector found"), which would mis-signal an identity mismatch.
+- **Cross-runtime golden vectors** (`golden/anchor-vectors.json`, regenerate via `scripts/generate-anchor-golden.mjs`): anchor generation for the padToThree shapes (1/2/3 accounts in explicit 6-slot layouts), deriveSelector membership + negative cases (order swap, double quoting, empty identity, poisoned empty-identity anchor), audience hashes, and error codes — executed by both `packages/sdk-node/__test__/anchor-golden.spec.ts` and `packages/sdk-wasm/tests/anchor_golden.rs` so node/wasm contract drift (the 0.1.5-class quoting regression) fails CI.
+
+### Changed
+
+- **wasm: thrown values are now real `Error` instances** (with `message` and `code`) instead of raw strings. `err.message` now works; code that relied on `typeof err === 'string'` or exact `String(err)` equality (now `"Error: <msg>"`) must read `err.message`. The unsupported-platform stubs (`groth16Setup`/`prove`/`verify`) throw `code: 'UNSUPPORTED_PLATFORM'` with unchanged messages.
+
 ## [0.1.10] - 2026-06-12
 
 ### Fixed
