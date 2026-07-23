@@ -11,6 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
       - name: cargo check
         run: cargo check --workspace
       - name: cargo clippy
@@ -23,6 +24,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: '.nvmrc'
+          cache: 'npm'
       # npm ci from the committed lock; catches a stale/unusable lock before release.
       - name: Validate package-lock.json (npm ci)
         run: npm ci --ignore-scripts
