@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **`deriveSelector` is now available in the react-native runtime** (`@baerae/zkap-zkp-react-native`), closing the last runtime gap (node 0.1.11, wasm 0.1.13): the UniFFI crate exports `derive_selector(config, secrets, anchorEvaluations): number[]` with the same contract — the k-of-n slot selector (0/1 per slot) iff the presented raw secrets, in slot-ascending relative order, occupy some slot combination of the anchor. Wrong-length `anchorEvaluations` is rejected up front as a dimension mismatch (message parity with node/wasm; UniFFI errors carry no `code` field, so match on the stable message text). The facade `react-native` condition now calls the native module instead of throwing `UnsupportedPlatformError`. This enables on-device anchor membership self-checks immediately after anchor construction, which previously required round-tripping through the node or wasm runtime. The golden vectors (`golden/anchor-vectors.json`) are now also executed against the UniFFI surface (`crates/uniffi-bindings/src/anchor_golden_tests.rs`), so node/wasm/react-native contract drift fails `cargo test`.
+
 ## [0.1.13] - 2026-07-17
 
 ### Added
