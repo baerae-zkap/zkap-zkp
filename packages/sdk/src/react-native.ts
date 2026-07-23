@@ -1,4 +1,5 @@
 import {
+  deriveSelector as rnDeriveSelector,
   generateAnchor as rnGenerateAnchor,
   generateAudHash as rnGenerateAudHash,
   generateHash as rnGenerateHash,
@@ -90,14 +91,14 @@ export async function generateAnchor(
 }
 
 export async function deriveSelector(
-  _config: CircuitConfig,
-  _secrets: Secret[],
-  _anchorEvaluations: string[],
+  config: CircuitConfig,
+  secrets: Secret[],
+  anchorEvaluations: string[],
 ): Promise<number[]> {
-  throw new UnsupportedPlatformError(
-    'deriveSelector',
-    'react-native',
-    '[zkap-zkp] deriveSelector is not exposed by the react-native native module yet. Use the node or wasm runtime.',
+  return rnDeriveSelector(
+    toReactNativeConfig(config),
+    secrets,
+    anchorEvaluations,
   );
 }
 

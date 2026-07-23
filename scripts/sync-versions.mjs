@@ -95,11 +95,17 @@ updatePackageJson('packages/sdk-react-native', (pkg) => {
 console.log('\nUpdating package-lock.json...');
 execFileSync('npm', ['install', '--package-lock-only'], { cwd: root, stdio: 'inherit' });
 
-// Guard: every registry (non-link) entry must keep resolved+integrity, else the
-// lockfile is incomplete and `npm ci` may fail. Abort rather than commit it.
+// Guard: every registry (non-link) entry must keep version+resolved+integrity,
+// else the lockfile is incomplete and `npm ci` may fail. Abort rather than
+// commit it. `includes` (not `startsWith`) so workspace-nested entries
+// (packages/*/node_modules/...) are covered too — a versionless
+// `{"optional": true}` stub nested under packages/sdk-node slipped past the
+// old prefix check and crashed `npm ci` with "Invalid Version" once the
+// matching platform packages became resolvable on the registry.
 const lock = JSON.parse(readFileSync(resolve(root, 'package-lock.json'), 'utf8'));
 const missing = Object.entries(lock.packages ?? {}).filter(
-  ([name, entry]) => name.startsWith('node_modules/') && !entry.link && !entry.integrity,
+  ([name, entry]) =>
+    name.includes('node_modules/') && !entry.link && (!entry.integrity || !entry.version),
 );
 if (missing.length > 0) {
   console.error(`\npackage-lock.json is missing integrity for ${missing.length} entries — aborting.`);

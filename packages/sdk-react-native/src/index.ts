@@ -1,6 +1,7 @@
 import NativeZkapReactNative from './NativeZkapReactNative';
 import { Platform } from 'react-native';
 import generatedBindings, {
+  deriveSelector as nativeDeriveSelector,
   generateAnchor as nativeGenerateAnchor,
   generateAudHash as nativeGenerateAudHash,
   generateHash as nativeGenerateHash,
@@ -288,6 +289,25 @@ export async function generateAnchor(
 ): Promise<{ evaluations: string[] }> {
   ensureInitialized();
   return withZkapErrorMessage(() => nativeGenerateAnchor(toNativeConfig(config), secrets));
+}
+
+/**
+ * Derive the k-of-n anchor slot selector (0/1 per slot) from `k` known
+ * secrets and the anchor evaluations (hex or decimal strings, e.g. from
+ * on-chain `getAnchor()`). Membership check for shuffled anchors whose
+ * dummy-slot preimages were discarded at registration — throws
+ * "No valid selector found" when the secrets, in their slot-ascending
+ * relative order, are not members of the anchor.
+ */
+export async function deriveSelector(
+  config: CircuitConfig,
+  secrets: Secret[],
+  anchor_evaluations: string[],
+): Promise<number[]> {
+  ensureInitialized();
+  return withZkapErrorMessage(() =>
+    nativeDeriveSelector(toNativeConfig(config), secrets, anchor_evaluations)
+  );
 }
 
 /**

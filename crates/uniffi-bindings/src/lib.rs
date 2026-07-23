@@ -92,6 +92,17 @@ pub struct ZkapSecret {
     pub aud: String,
 }
 
+fn to_anchor_secrets(secrets: Vec<ZkapSecret>) -> Vec<AnchorSecret> {
+    secrets
+        .into_iter()
+        .map(|s| AnchorSecret {
+            subject: s.sub,
+            issuer: s.iss,
+            audience: s.aud,
+        })
+        .collect()
+}
+
 /// Per-credential prove inputs (one per JWT participating in the batch).
 #[derive(Debug, Clone, uniffi::Record)]
 pub struct ZkapProveCredential {
@@ -256,24 +267,53 @@ pub fn generate_anchor(
     secrets: Vec<ZkapSecret>,
 ) -> Result<ZkapAnchorResult, ZkapError> {
     let params = CircuitConfig::from(config);
-    let service_secrets: Vec<AnchorSecret> = secrets
-        .into_iter()
-        .map(|s| AnchorSecret {
-            subject: s.sub,
-            issuer: s.iss,
-            audience: s.aud,
-        })
-        .collect();
     let result = service_generate_anchor(
         &params,
         GenerateAnchorRequest {
-            secrets: service_secrets,
+            secrets: to_anchor_secrets(secrets),
         },
     )
     .map_err(ZkapError::from)?;
     Ok(ZkapAnchorResult {
         evaluations: result.anchor_evaluations,
     })
+}
+
+/// Derive the k-of-n anchor slot selector (0/1 per slot) from `k` known
+/// secrets and the anchor evaluations (hex-or-decimal strings, e.g. from
+/// on-chain `getAnchor()`).
+///
+/// Membership check for shuffled anchors whose dummy-slot preimages were
+/// discarded at registration: succeeds iff the presented secrets — in their
+/// slot-ascending relative order — occupy some slot combination of the
+/// anchor. Errors with "No valid selector found" on mismatch.
+#[uniffi::export]
+pub fn derive_selector(
+    config: ZkapCircuitConfig,
+    secrets: Vec<ZkapSecret>,
+    anchor_evaluations: Vec<String>,
+) -> Result<Vec<u32>, ZkapError> {
+    let params = CircuitConfig::from(config);
+
+    // The rust core reports a wrong-length anchor as an exhausted selector
+    // search ("No valid selector found"), which would mis-classify the error
+    // — reject the dimension violation up front. Keep this message in sync
+    // with packages/sdk-node/src/lib.rs and packages/sdk-wasm/src/lib.rs.
+    let expected_evals = (params.n - params.k + 1) as usize;
+    if anchor_evaluations.len() != expected_evals {
+        return Err(ZkapError::ApplicationError {
+            message: format!(
+                "Dimension mismatch: anchor_evaluations length must be n - k + 1 = {expected_evals}, got {}",
+                anchor_evaluations.len()
+            ),
+        });
+    }
+
+    let selector =
+        zkap_service::derive_selector(&params, &to_anchor_secrets(secrets), &anchor_evaluations)
+            .map_err(ZkapError::from)?;
+
+    Ok(selector.into_iter().map(u32::from).collect())
 }
 
 /// Prepare the manifest-verified inputs required by the iOS WKWebView
@@ -881,6 +921,9 @@ fn synthesize_via_wasm(
         .map_err(|e| wasm_err(format!("WitnessBundle CanonicalDeserialize: {e}")))?;
     Ok(bundles)
 }
+
+#[cfg(test)]
+mod anchor_golden_tests;
 
 #[cfg(all(test, feature = "wasm-witness"))]
 mod tests {
