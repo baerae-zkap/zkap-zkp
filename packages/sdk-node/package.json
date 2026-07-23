@@ -1,6 +1,6 @@
 {
   "name": "@baerae/zkap-zkp-node",
-  "version": "0.1.13",
+  "version": "0.1.14",
   "description": "Node.js native bindings for zkap-zkp (napi-rs)",
   "main": "index.js",
   "types": "index.d.ts",
@@ -50,12 +50,12 @@
     "test:all": "npm run test && npm run test:bdd"
   },
   "optionalDependencies": {
-    "@baerae/zkap-zkp-node-darwin-arm64": "0.1.13",
-    "@baerae/zkap-zkp-node-darwin-x64": "0.1.13",
-    "@baerae/zkap-zkp-node-linux-x64-gnu": "0.1.13",
-    "@baerae/zkap-zkp-node-linux-x64-musl": "0.1.13",
-    "@baerae/zkap-zkp-node-linux-arm64-gnu": "0.1.13",
-    "@baerae/zkap-zkp-node-linux-arm64-musl": "0.1.13"
+    "@baerae/zkap-zkp-node-darwin-arm64": "0.1.14",
+    "@baerae/zkap-zkp-node-darwin-x64": "0.1.14",
+    "@baerae/zkap-zkp-node-linux-x64-gnu": "0.1.14",
+    "@baerae/zkap-zkp-node-linux-x64-musl": "0.1.14",
+    "@baerae/zkap-zkp-node-linux-arm64-gnu": "0.1.14",
+    "@baerae/zkap-zkp-node-linux-arm64-musl": "0.1.14"
   },
   "devDependencies": {
     "@napi-rs/cli": "^2.18",

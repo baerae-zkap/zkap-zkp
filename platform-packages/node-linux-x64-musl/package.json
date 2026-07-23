@@ -1,6 +1,6 @@
 {
   "name": "@baerae/zkap-zkp-node-linux-x64-musl",
-  "version": "0.1.13",
+  "version": "0.1.14",
   "description": "Linux x64 (musl) binary for @baerae/zkap-zkp-node",
   "os": [
     "linux"
