@@ -1,10 +1,25 @@
 name: Build Node.js binaries
 
+# Tag pushes intentionally do NOT trigger this workflow: release.yml builds
+# its own binaries and never consumes these artifacts, so a tag-time run here
+# only burned runners. Path filters skip the matrix for changes that cannot
+# affect the node binaries (docs, lockfile-only bumps, other packages).
 on:
   push:
     branches: [main, develop]
-    tags: ['v*']
+    paths:
+      - 'crates/**'
+      - 'packages/sdk-node/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/build-node.yml'
   pull_request:
+    paths:
+      - 'crates/**'
+      - 'packages/sdk-node/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/build-node.yml'
 
 jobs:
   build:
@@ -47,6 +62,14 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
+
+      # Caches ~/.cargo and ./target keyed per matrix target. The musl rows
+      # build inside the napi-rs alpine container, which mounts the workspace,
+      # so their ./target is host-visible and cached the same way.
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
 
       - name: Install cargo-binstall
         uses: cargo-bins/cargo-binstall@c3664f981c04ab538bd76b0ba83680ee5bab631a  # v1.17.9

@@ -1,10 +1,26 @@
 name: Build React Native
 
+# Tag pushes intentionally do NOT trigger this workflow: release.yml builds
+# its own iOS/Android slices and never consumes these artifacts. Path filters
+# skip the matrix for changes that cannot affect the native module.
 on:
   push:
     branches: [develop]
-    tags: ['v*']
+    paths:
+      - 'crates/**'
+      - 'packages/sdk-react-native/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'scripts/check-rn-ios-runtime.mjs'
+      - '.github/workflows/build-react-native.yml'
   pull_request:
+    paths:
+      - 'crates/**'
+      - 'packages/sdk-react-native/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'scripts/check-rn-ios-runtime.mjs'
+      - '.github/workflows/build-react-native.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -45,6 +61,11 @@ jobs:
         with:
           toolchain: stable
           targets: ${{ matrix.target }}
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4  # v2.9.1
+        with:
+          key: ${{ matrix.target }}
 
       - name: Verify iOS wasm runtime
         run: npm run check:rn-ios-runtime -- ${{ matrix.target }}
@@ -91,6 +112,11 @@ jobs:
         with:
           toolchain: stable
           targets: ${{ matrix.target }}
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4  # v2.9.1
+        with:
+          key: ${{ matrix.target }}
 
       - name: Setup Android NDK
         uses: android-actions/setup-android@00854ea68c109d98c75d956347303bf7c45b0277  # v3
